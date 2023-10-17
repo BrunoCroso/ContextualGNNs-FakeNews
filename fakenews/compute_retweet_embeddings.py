@@ -25,15 +25,11 @@ class UserRetweets:
         self,
         user_profiles_path,
         retweets_embeddings_path,
-        embeddings_file,
-        users_embeddings_lookup,
-        not_in_lookup_embedding
+        embeddings_file
     ): #Acho que já está certa essa função
         self._user_profiles_path = user_profiles_path
         self._retweets_embeddings_path = retweets_embeddings_path
         self._embeddings_file = embeddings_file
-        self._users_embeddings_lookup = users_embeddings_lookup
-        self._not_in_lookup_embedding = not_in_lookup_embedding
 
 
     def _strip_retweet(self, retweet, embedder): # Acho que já está certa essa função
@@ -80,10 +76,7 @@ class UserRetweets:
         retweet_id_and_embedding = {}
         retweet_id_and_embedding['rewteet_id'] = retweet.id
         retweet_id_and_embedding['user'] = retweet.user
-        graphsage_embedding = self._users_embeddings_lookup.get(str(retweet_id_and_embedding['rewteet_id']), None)
-        if graphsage_embedding is None:
-            graphsage_embedding = self._not_in_lookup_embedding.tolist()
-        retweet_id_and_embedding["embedding"] = embedder.embed(retweet).tolist() + graphsage_embedding
+        retweet_id_and_embedding["embedding"] = embedder.embed(retweet).tolist()
         return retweet_id_and_embedding
 
 
@@ -117,16 +110,10 @@ def run(args): # Acho que já está certa essa função
     user_profiles_path = "{}/user_profiles".format(args.input_dir)
     retweets_embeddings_path = "{}/retweets_embeddings".format(args.dataset_root)
 
-    logging.info("Loading retweet embeddings using BERTweet")
-    with open(os.path.join(args.dataset_root, "datasets", "dataset0", "users_graphsage_embeddings_lookup.json")) as f:
-        users_embeddings_lookup = json.load(f)
-
     dataset = UserRetweets(
         user_profiles_path=user_profiles_path,
         retweets_embeddings_path=retweets_embeddings_path,
-        embeddings_file=args.embeddings_file,
-        users_embeddings_lookup=users_embeddings_lookup,
-        not_in_lookup_embedding=np.zeros(len(list(users_embeddings_lookup.values())[0]))
+        embeddings_file=args.embeddings_file
     )
 
     dataset.run()

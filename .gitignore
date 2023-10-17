@@ -1,0 +1,15 @@
+.idea/
+env/
+last_endpoint.txt
+remaining_user_ids_followers.pkl
+remaining_users_botometer.pkl
+edges.pkl
+vertices.pkl
+hold_out_edges_df.pkl
+hold_out_vertices_df.pkl
+users_embedding_*/
+missing_user_profiles/
+__pycache__
+tweets1/
+trees2/
+.DS_store

@@ -22,15 +22,11 @@ class UserProfiles:
         self,
         user_profiles_path,
         user_embeddings_path,
-        embeddings_file,
-        users_embeddings_lookup,
-        not_in_lookup_embedding
+        embeddings_file
     ):
         self._user_profiles_path = user_profiles_path
         self._user_embeddings_path = user_embeddings_path
         self._embeddings_file = embeddings_file
-        self._users_embeddings_lookup = users_embeddings_lookup
-        self._not_in_lookup_embedding = not_in_lookup_embedding
 
 
     def _strip_user_profile(self, user_profile, user_embedder):
@@ -44,10 +40,7 @@ class UserProfiles:
 
         user = {}
         user['id'] = user_profile.id
-        graphsage_embedding = self._users_embeddings_lookup.get(str(user['id']), None)
-        if graphsage_embedding is None:
-            graphsage_embedding = self._not_in_lookup_embedding.tolist()
-        user["embedding"] = user_embedder.embed(user_profile).tolist() + graphsage_embedding
+        user["embedding"] = user_embedder.embed(user_profile).tolist()
         return user
 
 
@@ -79,16 +72,10 @@ def run(args):
     user_profiles_path = "{}/user_profiles".format(args.input_dir)
     user_embeddings_path = "{}/user_embeddings".format(args.dataset_root)
 
-    logging.info("Loading users embeddings graphsage lookup")
-    with open(os.path.join(args.dataset_root, "datasets", "dataset0", "users_graphsage_embeddings_lookup.json")) as f:
-        users_embeddings_lookup = json.load(f)
-
     dataset = UserProfiles(
         user_profiles_path=user_profiles_path,
         user_embeddings_path=user_embeddings_path,
-        embeddings_file=args.embeddings_file,
-        users_embeddings_lookup=users_embeddings_lookup,
-        not_in_lookup_embedding=np.zeros(len(list(users_embeddings_lookup.values())[0]))
+        embeddings_file=args.embeddings_file
     )
 
     dataset.run()
