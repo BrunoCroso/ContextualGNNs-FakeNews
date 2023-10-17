@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
-#
-# Preprocess the FakeNews dataset. Create a folder which contains one file 
-# per tweet. Inside each tweet we have its list of retweets.
-#
+
+'''
+Preprocess the FakeNews dataset. Create a folder which contains one file 
+per tweet. Inside each tweet we have its list of retweets.
+'''
+
 
 import argparse
 import os
@@ -18,6 +20,12 @@ import json
 
 
 def run(args):
+    ''' (args) -> (None)
+
+    This function processes the FakeNews dataset by organizing tweets and their
+    corresponding retweets. It generates separate JSON files for each tweet, where
+    the tweet contains its list of retweets and a label (fake or real).
+    '''
 
     random.seed(31)
 

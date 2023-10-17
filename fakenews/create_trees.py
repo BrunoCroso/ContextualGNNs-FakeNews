@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
-#
-# Preprocess the FakeNews dataset. Create a folder which contains one file 
-# per tweet. Inside each tweet we have its list of retweets.
-#
+'''
+This script processes the FakeNews dataset by creating trees of retweets for each tweet 
+Each tree is represented as a directed graph, where the root tweet is at the top, and subsequent
+retweets are added as children. The resulting trees are saved as JSON files in the "trees" folder inside "produced_data".
+'''
 
 import argparse
 import os
@@ -28,6 +29,10 @@ MISSING_USER_PROFILES_PATH = "missing_user_profiles"
 TREES_PATH = "trees2"
 
 def _lookup_RT(text):
+    '''
+    This function receives the retweet information (text) and searches the input text for the pattern "RT @username:",
+    where username is the retweet source's username. If found, it returns the username; otherwise, it returns None.
+    '''
     match = re.search(r'RT\s@((\w){1,15}):', text)
     if match: 
         return match.group(1)
@@ -35,7 +40,8 @@ def _lookup_RT(text):
 
 
 def _find_retweet_source(retweet, previous_retweets):
-    """Given a retweet and all previous retweers estimate from which 
+    """
+    Given a retweet and all previous retweers estimate from which 
     retweet it originated.
     """
     user = retweet.user
