@@ -15,6 +15,8 @@ def run(args):
 
     for i in range(args.num_datasets):
 
+        print(f'\nDataset {i}')
+
         users_embeddings_root = os.path.join(args.dataset_root, "user_embeddings")
         retweet_embeddings_root = os.path.join(args.dataset_root, "retweets_embeddings")
 
