@@ -86,15 +86,25 @@ class UserRetweets:
         logging.info("Will output user embeddings to {}".format(self._retweets_embeddings_path))
         os.makedirs(self._retweets_embeddings_path, exist_ok=True)
 
-        bertweet_model = AutoModel.from_pretrained("vinai/bertweet-base")
-        embedder = embeddings.RetweetContentEmbedder(bertweet_model=bertweet_model)
+        with open("options.json", "r") as json_file:
+            options = json.load(json_file)
+
+        if options["embedder_type"].lower() == "glove":
+            glove_embeddings = utils.load_glove_embeddings(self._embeddings_file)
+            retweet_embedder = embeddings.GloVeRetweetContentEmbedder(glove_embeddings=glove_embeddings)        
+        
+        
+        elif options["embedder_type"].lower() == "bertweet":
+            bertweet_model = AutoModel.from_pretrained("vinai/bertweet-base")
+            retweet_embedder = embeddings.BERTweetRetweetContentEmbedder(bertweet_model=bertweet_model)
+
 
         length = len(list(os.scandir(self._user_profiles_path))) # Retweets e user_profiles estão salvos em um mesmo json?
         for fentry in tqdm(os.scandir(self._user_profiles_path), total=length):
             if fentry.path.endswith(".json") and fentry.is_file():
                 with open(fentry.path) as json_file:
                     retweet = json.load(json_file)
-                    retweet_id_and_embedding = self._strip_retweet(retweet, embedder)
+                    retweet_id_and_embedding = self._strip_retweet(retweet, retweet_embedder)
                     if retweet_id_and_embedding is not None:
 
                         outfile = "{}/{}.json".format(self._retweets_embeddings_path, retweet_id_and_embedding['user'])
@@ -104,19 +114,34 @@ class UserRetweets:
 
 
 def run(args): # Acho que já está certa essa função
+    
+    with open("options.json", "r") as json_file:
+        options = json.load(json_file)
 
-    logging.info("Loading dataset")
+    if options["retweet_embeddings"] == True:
 
-    user_profiles_path = "{}/user_profiles".format(args.input_dir)
-    retweets_embeddings_path = "{}/retweets_embeddings".format(args.dataset_root)
+        if options["embedder_type"].lower() == "glove":
+            print("\nEmbeddings will be generated using GloVe, as defined in options.json\n")
+            retweets_embeddings_path = "{}/glove_retweets_embeddings".format(args.dataset_root)
+                
+        elif options["embedder_type"].lower() == "bertweet":
+            print("\nEmbeddings will be generated using BERTweet, as defined in options.json\n")
+            retweets_embeddings_path = "{}/bertweet_retweets_embeddings".format(args.dataset_root)
+    
+        user_profiles_path = "{}/user_profiles".format(args.input_dir)
 
-    dataset = UserRetweets(
-        user_profiles_path=user_profiles_path,
-        retweets_embeddings_path=retweets_embeddings_path,
-        embeddings_file=args.embeddings_file
-    )
+        logging.info("Loading dataset")
 
-    dataset.run()
+        dataset = UserRetweets(
+            user_profiles_path=user_profiles_path,
+            retweets_embeddings_path=retweets_embeddings_path,
+            embeddings_file=args.embeddings_file
+        )
+
+        dataset.run()
+
+    else:
+        print("\nEmbeddings will NOT be generated for retweet content, as defined in options.json\n")
 
 
 if __name__ == "__main__": # As pastas e o resto do conteúdo são passados no terminal )no run.sh)

@@ -49,8 +49,18 @@ class UserProfiles:
         logging.info("Will output user embeddings to {}".format(self._user_embeddings_path))
         os.makedirs(self._user_embeddings_path, exist_ok=True)
 
-        glove_embeddings = utils.load_glove_embeddings(self._embeddings_file)
-        user_embedder = embeddings.UserEmbedder(glove_embeddings=glove_embeddings)
+        with open("options.json", "r") as json_file:
+            options = json.load(json_file)
+
+        if options["embedder_type"].lower() == "glove":
+            glove_embeddings = utils.load_glove_embeddings(self._embeddings_file)
+            user_embedder = embeddings.GloVeUserEmbedder(glove_embeddings=glove_embeddings)        
+        
+        
+        elif options["embedder_type"].lower() == "bertweet":
+            bertweet_model = AutoModel.from_pretrained("vinai/bertweet-base")
+            user_embedder = embeddings.BERTweetUserEmbedder(bertweet_model=bertweet_model)
+
 
         length = len(list(os.scandir(self._user_profiles_path)))
         for fentry in tqdm(os.scandir(self._user_profiles_path), total=length):
@@ -67,19 +77,34 @@ class UserProfiles:
 
 def run(args):
 
-    logging.info("Loading dataset")
+    with open("options.json", "r") as json_file:
+        options = json.load(json_file)
 
-    user_profiles_path = "{}/user_profiles".format(args.input_dir)
-    user_embeddings_path = "{}/user_embeddings".format(args.dataset_root)
+    if options["user_embeddings"] == True:
 
-    dataset = UserProfiles(
-        user_profiles_path=user_profiles_path,
-        user_embeddings_path=user_embeddings_path,
-        embeddings_file=args.embeddings_file
-    )
+        if options["embedder_type"].lower() == "glove":
+            print("\nEmbeddings will be generated using GloVe, as defined in options.json\n")
+            user_embeddings_path = "{}/glove_user_embeddings".format(args.dataset_root)
+            
+        elif options["embedder_type"].lower() == "bertweet":
+            print("\nEmbeddings will be generated using BERTweet, as defined in options.json\n")
+            user_embeddings_path = "{}/bertweet_user_embeddings".format(args.dataset_root)
+        
 
-    dataset.run()
+        user_profiles_path = "{}/user_profiles".format(args.input_dir)
 
+        logging.info("Loading dataset")
+
+        dataset = UserProfiles(
+            user_profiles_path=user_profiles_path,
+            user_embeddings_path=user_embeddings_path,
+            embeddings_file=args.embeddings_file
+        )
+
+        dataset.run()
+
+    else:
+        print("\nEmbeddings will NOT be generated for user profiles, as defined in options.json\n")
 
 if __name__ == "__main__":
 
