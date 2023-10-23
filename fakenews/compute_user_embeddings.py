@@ -14,6 +14,8 @@ import embeddings
 import utils
 import numpy as np
 
+from transformers import AutoModel, AutoTokenizer
+
 from tqdm import tqdm
 
 

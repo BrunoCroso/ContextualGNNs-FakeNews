@@ -50,7 +50,10 @@ def run(args):
                 logging.info("Adding node embeddings to trees %s" % (path))
                 for fname in tqdm(tree_filenames):
                     with open(os.path.join(path, fname)) as f:
-                        tree = json.load(f)
+                        try:
+                            tree = json.load(f)
+                        except:
+                            pass
                     
                     for i, node in enumerate(tree['nodes']):
                         # Adicionando user_embeddings
