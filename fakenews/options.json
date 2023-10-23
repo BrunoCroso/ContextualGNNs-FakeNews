@@ -1,0 +1,11 @@
+{
+    "how_to_use": [
+        "This json file defines what characteristics are considered for the desired model. The options for each field are:",
+        "user_embeddings: true or false (using only lowercase letters). Depending on the option, the model will consider (or not) the content of the users profile in its prediction.",
+        "retweet_embeddings: true or false (using only lowercase letters). Depending on the option, the model will consider (or not) the content of the news retweets in its prediction.",
+        "embedder_type: GloVe or BERTweet (both in quotes). This option defines how embeddings will be generated - using GloVe or BERTweet"
+    ],
+    "user_embeddings": false,
+    "retweet_embeddings": true,
+    "embedder_type": "BERTweet"
+}
