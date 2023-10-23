@@ -117,7 +117,7 @@ def run(args):
                         json.dump(tree, f)
 
 
-    if options["user_embeddings"] == False and options["retweet_embeddings"] == True:
+    elif options["user_embeddings"] == False and options["retweet_embeddings"] == True:
 
         for i in range(args.num_datasets):
 
@@ -159,6 +159,8 @@ def run(args):
                     with open(os.path.join(path, fname), 'w') as f:
                         json.dump(tree, f)
 
+    elif options["user_embeddings"] == False and options["retweet_embeddings"] == False:
+        print('\nNo user embeddings or retweet embeddings to be added\n')
 
 
 

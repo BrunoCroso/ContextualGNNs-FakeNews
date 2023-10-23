@@ -21,21 +21,52 @@ from tqdm import tqdm
 def tree_to_data(filename):
     logging.debug("Reading {}".format(filename))
 
+    with open("options.json", "r") as json_file:
+        options = json.load(json_file)
+
     # read label
     with open(filename) as json_file:
-        data = json.load(json_file)
+        try:
+            data = json.load(json_file)
+        except:
+            return None, None, None
         label = data["label"]
         # 0 = true, 1 = fake
         is_fake = label == "fake"
 
     vfeatures = []
-    for node in data['nodes']:
-        as_list = []
-        for key in ["delay", "protected", "following_count", "listed_count", "statuses_count", "followers_count", "favourites_count", "verified",]:
-            as_list.append(float(node[key]))
-        as_list.extend(node["user_embedding"])
-        as_list.extend(node["retweet_embedding"])
-        vfeatures.append(as_list)
+
+    if options["user_embeddings"] == True and options["retweet_embeddings"] == True:
+        for node in data['nodes']:
+            as_list = []
+            for key in ["delay", "protected", "following_count", "listed_count", "statuses_count", "followers_count", "favourites_count", "verified",]:
+                as_list.append(float(node[key]))
+            as_list.extend(node["user_embedding"])
+            as_list.extend(node["retweet_embedding"])
+            vfeatures.append(as_list)
+
+    if options["user_embeddings"] == True and options["retweet_embeddings"] == False:
+        for node in data['nodes']:
+            as_list = []
+            for key in ["delay", "protected", "following_count", "listed_count", "statuses_count", "followers_count", "favourites_count", "verified",]:
+                as_list.append(float(node[key]))
+            as_list.extend(node["user_embedding"])
+            vfeatures.append(as_list)
+
+    if options["user_embeddings"] == False and options["retweet_embeddings"] == True:
+        for node in data['nodes']:
+            as_list = []
+            for key in ["delay", "protected", "following_count", "listed_count", "statuses_count", "followers_count", "favourites_count", "verified",]:
+                as_list.append(float(node[key]))
+            as_list.extend(node["retweet_embedding"])
+            vfeatures.append(as_list)
+
+    if options["user_embeddings"] == False and options["retweet_embeddings"] == False:
+        for node in data['nodes']:
+            as_list = []
+            for key in ["delay", "protected", "following_count", "listed_count", "statuses_count", "followers_count", "favourites_count", "verified",]:
+                as_list.append(float(node[key]))
+            vfeatures.append(as_list)
 
     vlabels = []
     vlabels.append(is_fake)
@@ -157,7 +188,7 @@ def run(root_path):
                 label, number_of_features, t = tree_to_data(fentry.path)
                 if label == "real":
                     dataset_real.append(t)
-                else:
+                elif label == "fake":
                     dataset_fake.append(t)
 
         number_of_samples = min(len(dataset_real), len(dataset_fake))
