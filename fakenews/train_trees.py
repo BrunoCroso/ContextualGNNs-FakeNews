@@ -280,7 +280,34 @@ if __name__ == "__main__":
         results.append(run(path))
     accuracies = [res[0] for res in results]
     accuracies = np.array(accuracies)
+    
+    with open("options.json", "r") as json_file:
+        options = json.load(json_file)
+
     print()
+    if options["user_embeddings"]:
+        if options["retweet_embeddings"]:
+            if options["embedder_type"].lower() == "glove":
+                print("The average metrics obtained using profile embeddings, using retweet embeddings, and using GloVe as an embedder are:")
+            elif options["embedder_type"].lower() == "bertweet":
+                print("The average metrics obtained using profile embeddings, using retweet embeddings, and using BERTweet as an embedder are:")
+        else:
+            if options["embedder_type"].lower() == "glove":
+                print("The average metrics obtained using profile embeddings, not using retweet embeddings, and using GloVe as an embedder are:")
+            elif options["embedder_type"].lower() == "bertweet":
+                print("The average metrics obtained using profile embeddings, not using retweet embeddings, and using BERTweet as an embedder are:")
+    else:
+        if options["retweet_embeddings"]:
+            if options["embedder_type"].lower() == "glove":
+                print("The average metrics obtained not using profile embeddings, using retweet embeddings, and using GloVe as an embedder are:")
+            elif options["embedder_type"].lower() == "bertweet":
+                print("The average metrics obtained not using profile embeddings, using retweet embeddings, and using BERTweet as an embedder are:")
+        else:
+            if options["embedder_type"].lower() == "glove":
+                print("The average metrics obtained not using profile embeddings, not using retweet embeddings, and using GloVe as an embedder are:")
+            elif options["embedder_type"].lower() == "bertweet":
+                print("The average metrics obtained not using profile embeddings, not using retweet embeddings, and using BERTweet as an embedder are:")
+
     print(f'Mean accuracy {accuracies.mean()} Std: {accuracies.std()}')
 
     precisions = [res[1] for res in results]
