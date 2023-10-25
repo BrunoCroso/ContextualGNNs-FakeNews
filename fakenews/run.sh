@@ -4,7 +4,8 @@
 rm -r tweets1
 rm -r trees2
 
-
+echo "##### Model informations #####" # Documentado
+python infos.py
 echo "##### RUN dataset_preprocess #####" # Documentado
 python dataset_preprocess.py --ignore-dataset-pkl --sample-probability 1 # Devolver para 1
 echo "##### RUN create_trees #####" 
@@ -16,12 +17,12 @@ echo "##### RUN compute_user_labels #####"
 python compute_user_labels.py --input-dir=../raw_data
 
 
-echo "##### TEST RUN compute_user_embeddings #####"
-python compute_user_embeddings.py --input-dir ../raw_data --dataset-root produced_data --embeddings-file ../raw_data/glove.twitter.27B.100d.txt
+#echo "##### TEST RUN compute_user_embeddings #####"
+#python compute_user_embeddings.py --input-dir ../raw_data --dataset-root produced_data --embeddings-file ../raw_data/glove.twitter.27B.100d.txt
 
 
-echo "##### TEST RUN compute_retweet_embeddings #####"
-python compute_retweet_embeddings.py --input-dir ../raw_data --dataset-root produced_data --embeddings-file ../raw_data/glove.twitter.27B.100d.txt
+#echo "##### TEST RUN compute_retweet_embeddings #####"
+#python compute_retweet_embeddings.py --input-dir ../raw_data --dataset-root produced_data --embeddings-file ../raw_data/glove.twitter.27B.100d.txt
 
 
 echo "##### TEST RUN add_trees_information #####"
