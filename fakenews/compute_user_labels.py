@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
-#
-# Compute user labels based on their participation in astroturfing.
-#
+'''
+This script analyzes retweet data from real and fake news sources in the FakeNewsNet dataset to compute user labels.
+Users are labeled based on their involvement in retweeting real or fake news tweets. 
+The resulting user labels are stored in JSON files for further use.
+'''
 
 import argparse
 import json
@@ -10,6 +12,10 @@ import os
 import logging
 
 class UserLabels:
+    '''
+    This class processes retweet data from real and fake news sources to compute user labels.
+    '''
+
     def __init__(
         self,
         real_news_retweets_path,
@@ -24,7 +30,10 @@ class UserLabels:
         self._user_labels_path = user_labels_path
 
     def run(self):
-        """Load the dataset and compute labels."""
+        '''
+        Load the dataset and compute labels
+        '''
+
         for fentry in os.scandir(self._fake_news_retweets_path):
             if fentry.is_dir():
                 retweets_path = "{}/retweets".format(fentry.path)
@@ -49,6 +58,9 @@ class UserLabels:
                 json.dump(user_obj, json_file)
 
     def _load_retweets_from_disk(self, dirpath, real):
+        '''
+        This method scans the specified directory, loads retweet data from JSON files, and updates user labels based on the loaded retweet data.
+        '''
         for fentry in os.scandir(dirpath):
             if fentry.path.endswith(".json") and fentry.is_file():
                 with open(fentry.path) as json_file:
@@ -61,6 +73,11 @@ class UserLabels:
                         self._update_tweet(retweet, real=real)
 
     def _update_tweet(self, tweet_dict, real):
+        '''
+        This method extracts user information from the provided tweet data and updates the user labels, 
+        counting the number of real and fake tweets associated with each user.
+        '''
+
         # load tweet user 
         if "user" in tweet_dict:
             user_id = str(tweet_dict["user"]["id"])
@@ -79,6 +96,9 @@ class UserLabels:
 
 
 def run(args):
+    '''
+    Run the process of loading the dataset and computing user labels
+    '''
 
     logging.info("Loading dataset")
 
