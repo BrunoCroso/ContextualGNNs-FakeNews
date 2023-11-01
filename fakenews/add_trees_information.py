@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 
-#
-# Tweets to dags version for FakeNews
-#
-# Alterado para adicionar também os embeddings dos retweets
+'''
+This script adds the generated embeddings to the trees previously created
+'''
 
 import argparse
 import json
@@ -12,6 +11,11 @@ import logging
 from tqdm import tqdm
 
 def run(args):
+    '''
+    Main function for processing datasets and adding user and retweet embeddings to the tree nodes.
+    This function reads the specified options from "options.json" and proceed based on the selected
+    embedding types and their availability.
+    '''
 
     with open("options.json", "r") as json_file:
         options = json.load(json_file)
@@ -56,7 +60,7 @@ def run(args):
                             pass
                     
                     for i, node in enumerate(tree['nodes']):
-                        # Adicionando user_embeddings
+                        # Adding user_embeddings
                         if not '%s.json' % (node['user_id']) in users_embeddings_files:
                             tree['nodes'][i]['user_embedding'] = not_found_user_embedding
                         else:
@@ -65,7 +69,7 @@ def run(args):
                             tree['nodes'][i]['user_embedding'] = user_embedding["embedding"]
 
 
-                        # Adicionando retweet_embeddings
+                        # Adding retweet_embeddings
                         if not '%s.json' % (node['user_id']) in retweet_embeddings_files:
                             tree['nodes'][i]['retweet_embedding'] = not_found_retweet_embedding
                         else:
@@ -108,7 +112,7 @@ def run(args):
                         tree = json.load(f)
                     
                     for i, node in enumerate(tree['nodes']):
-                        # Adicionando user_embeddings
+                        # Adding user_embeddings
                         if not '%s.json' % (node['user_id']) in users_embeddings_files:
                             tree['nodes'][i]['user_embedding'] = not_found_user_embedding
                         else:
@@ -151,7 +155,7 @@ def run(args):
                     
                     for i, node in enumerate(tree['nodes']):
 
-                        # Adicionando retweet_embeddings
+                        # Adding retweet_embeddings
                         if not '%s.json' % (node['user_id']) in retweet_embeddings_files:
                             tree['nodes'][i]['retweet_embedding'] = not_found_retweet_embedding
                         else:
