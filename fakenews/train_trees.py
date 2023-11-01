@@ -84,6 +84,7 @@ def tree_to_data(filename):
     #result = NormalizeFeatures()(result)
 
     number_of_features = len(vfeatures[0])
+    #print(number_of_features)
     return label, number_of_features, result
 
 
@@ -191,8 +192,9 @@ def run(root_path):
                 elif label == "fake":
                     dataset_fake.append(t)
 
-        number_of_samples = min(len(dataset_real), len(dataset_fake))
-        number_of_samples = 5000000
+        #number_of_samples = min(len(dataset_real), len(dataset_fake))
+        #number_of_samples = 5000000                #COMENTEI ESTA LINHA PARA TESTAR
+
         #number_of_real = len(dataset_real)
         #number_of_fake = len(dataset_fake)
         #if i == 0:
@@ -201,6 +203,13 @@ def run(root_path):
         #    print(multiply_by)
         #    multiply_by = int(multiply_by)
         #    dataset_fake = dataset_fake * multiply_by
+
+        number_of_real = len(dataset_real)
+        number_of_fake = len(dataset_fake)
+        multiply_by = int(number_of_real / number_of_fake)
+        dataset_fake = dataset_fake * multiply_by
+
+        number_of_samples = min(len(dataset_real), len(dataset_fake)) #TESTE
         dataset = dataset_real[:number_of_samples] + dataset_fake[:number_of_samples]
         #print('number of samples')
         #print(i, len(dataset))
