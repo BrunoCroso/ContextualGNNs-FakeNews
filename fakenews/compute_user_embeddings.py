@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-#
-# Compute user profile embeddings.
-#
+'''
+Compute user profile embeddings.
+'''
 
 import argparse
 import json
@@ -94,7 +94,7 @@ def run(args):
     user embeddings should be generated. If enabled, it selects the embedding method (GloVe or
     BERTweet) based on the options and initiates the user embeddings generation process.
     '''
-    
+
     with open("options.json", "r") as json_file:
         options = json.load(json_file)
 

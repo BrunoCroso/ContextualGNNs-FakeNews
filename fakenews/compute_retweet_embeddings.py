@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-#
-# Compute retweet embeddings.
-#
+'''
+Compute retweet embeddings.
+'''
 
 # AINDA ESTÁ COMPLETO 
 
@@ -26,53 +26,47 @@ class UserRetweets:
         user_profiles_path,
         retweets_embeddings_path,
         embeddings_file
-    ): #Acho que já está certa essa função
+    ):
         self._user_profiles_path = user_profiles_path
         self._retweets_embeddings_path = retweets_embeddings_path
         self._embeddings_file = embeddings_file
 
 
-    def _strip_retweet(self, retweet, embedder): # Acho que já está certa essa função
+    def _strip_retweet(self, retweet, embedder):
+        '''
+        Extract and preprocess retweet information and generate retweet embeddings.
+        '''
+
         if 'done' in retweet and retweet['done'] !=  'OK':
             text = ''
-            #retweet_author = retweet['id']
-            # Caso não tenha o id do usuário
             try:
                 retweet_author = retweet['id']
             except KeyError:
                 return None
             
-            #retweet = models.Tweet(int(retweet['status']['id']))
-            # Caso não exista um retweet
             try:
                 retweet = models.Tweet(int(retweet['status']['id']))
             except KeyError:
                 return None
 
         else:
-            #text = retweet['status']['text']
             try:
                 text = retweet['status']['text']
             except KeyError:
                 text = None
-            #retweet_author = retweet['id']
             try:
                 retweet_author = retweet['id']
             except KeyError:
                 return None
 
-            # Caso não exista um retweet
             try:
                 retweet = models.Tweet(int(retweet['status']['id']))
             except KeyError:
                 return None
 
-
-
         retweet.text = text
         retweet.user = retweet_author
         
-
         retweet_id_and_embedding = {}
         retweet_id_and_embedding['rewteet_id'] = retweet.id
         retweet_id_and_embedding['user'] = retweet.user
@@ -80,8 +74,12 @@ class UserRetweets:
         return retweet_id_and_embedding
 
 
-    def run(self): # Acho que já está certa essa função
-                   # Ver de no futuro criar os embeddings dos usuarios e dos retweets ao mesmo tempo para só abrir cada arquivo 1 vez
+    def run(self): 
+        '''
+        This function iterates through retweet data, preprocesses retweets, and generates
+        embeddings. The resulting retweet embeddings are saved to the specified output directory.
+        '''
+
         # Create output dir
         logging.info("Will output user embeddings to {}".format(self._retweets_embeddings_path))
         os.makedirs(self._retweets_embeddings_path, exist_ok=True)
@@ -113,7 +111,12 @@ class UserRetweets:
                             json.dump(retweet_id_and_embedding, out_json_file)
 
 
-def run(args): # Acho que já está certa essa função
+def run(args): 
+    '''
+    This function first loads the options from the "options.json" file. Depending on the selected
+    embedding type (GloVe or BERTweet) and the retweet embedding setting in the options, it generates
+    retweet embeddings and saves them to the specified output directory. 
+    '''
     
     with open("options.json", "r") as json_file:
         options = json.load(json_file)
