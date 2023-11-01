@@ -1,3 +1,10 @@
+
+'''
+This script is responsible for generating datasets and sets of user IDs for k-fold cross-validation. It splits tweet data into
+training, testing, and validation sets and saves them in separate directories. Additionally, it creates sets of user IDs for
+each dataset and writes them to JSON files.
+'''
+
 import argparse
 import os
 import logging
@@ -5,9 +12,13 @@ import shutil
 from sklearn.model_selection import train_test_split
 import json
 from sklearn.model_selection import KFold
-import operator
 
 def write_user_sets(output_dir, train_fnames, test_fnames, val_fnames):
+    '''
+    This function processes the tweet data and creates sets of user IDs for the train, test, and validation datasets.
+    The user IDs are extracted from the JSON representation of the tweet trees.
+    '''
+
     trees_directory = "produced_data/trees"
     train_user_ids = set()
     for fname in train_fnames:
@@ -52,6 +63,12 @@ def write_user_sets(output_dir, train_fnames, test_fnames, val_fnames):
         f)
 
 def run(args):
+    '''
+    This function generates datasets for k-fold cross-validation by splitting the tweet trees into
+    training, testing, and validation sets. It also creates sets of user IDs for each dataset and
+    writes them to separate JSON files.
+    '''
+
     logging.info("Generating datasets for k-fold cross validation")
     logging.info("Validation size:%s, number of folds:%s" % (args.val_size, args.k))
 
