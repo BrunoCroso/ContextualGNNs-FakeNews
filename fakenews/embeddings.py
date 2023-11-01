@@ -1,3 +1,7 @@
+'''
+This script contains the classes for the embedders to generate the user_profiles and retweets embeddings
+'''
+
 from typing import Dict, List, Union
 
 import numpy as np
@@ -10,6 +14,11 @@ import torch
 
 
 class GloVeUserEmbedder:
+    '''
+    This class is responsible for embedding user profiles using GloVe embeddings. 
+    It takes a GloVe word embeddings dictionary and an optional "not_in_vocabulary_embedding" as input.
+    '''
+
     def __init__(self, glove_embeddings: Dict=None, not_in_vocabulary_embedding: Union[List, np.ndarray]=None):
         self.__glove_embeddings = glove_embeddings
         self.__embedding_dimensions = len(glove_embeddings[list(glove_embeddings.keys())[0]])
@@ -19,6 +28,11 @@ class GloVeUserEmbedder:
             self.__not_in_vocabulary_embedding = not_in_vocabulary_embedding
 
     def embed(self, user: models.User):
+        '''
+        Generates an embedding for a user's description using the provided GloVe embeddings. 
+        It returns a NumPy array representing the user's embedding.
+        '''
+        
         embedding = np.array([])
         if self.__glove_embeddings is not None:
             tokens = utils.generate_tokens_from_text(user.description)
@@ -31,6 +45,11 @@ class GloVeUserEmbedder:
         return embedding
 
 class BERTweetUserEmbedder:
+    '''
+    This class embeds user profiles using the BERTweet model.
+    It takes a BERTweet model and an optional "not_in_vocabulary_embedding" as input.
+    '''
+
     def __init__(self, bertweet_model, not_in_vocabulary_embedding: Union[List, np.ndarray]=None):
         self.__bertweet_model = bertweet_model
         self.__embedding_dimensions = 768
@@ -41,6 +60,11 @@ class BERTweetUserEmbedder:
             self.__not_in_vocabulary_embedding = not_in_vocabulary_embedding
 
     def embed(self, user: models.User):
+        '''
+        Generates an embedding for a user's description using the BERTweet model.
+        It returns a NumPy array representing the user's embedding.
+        '''
+
         embedding = np.array([])
         if self.__bertweet_model is not None:
 
@@ -55,8 +79,11 @@ class BERTweetUserEmbedder:
         return embedding
 
 
-# Still need to change
 class GloVeRetweetContentEmbedder:
+    '''
+    This class embeds retweet content using GloVe embeddings.
+    It takes a GloVe word embeddings dictionary and an optional "not_in_vocabulary_embedding" as input.
+    '''
     def __init__(self, glove_embeddings: Dict=None, not_in_vocabulary_embedding: Union[List, np.ndarray]=None):
         self.__glove_embeddings = glove_embeddings
         self.__embedding_dimensions = len(glove_embeddings[list(glove_embeddings.keys())[0]])
@@ -66,6 +93,10 @@ class GloVeRetweetContentEmbedder:
             self.__not_in_vocabulary_embedding = not_in_vocabulary_embedding
 
     def embed(self, tweet: models.Tweet):
+        '''
+        Generates an embedding for the text of a retweet using the provided GloVe embeddings.
+        It returns a NumPy array representing the retweet's text embedding.
+        '''
         embedding = np.array([])
         if self.__glove_embeddings is not None:
             tokens = utils.generate_tokens_from_text(tweet.text)
@@ -79,6 +110,10 @@ class GloVeRetweetContentEmbedder:
 
 
 class BERTweetRetweetContentEmbedder:
+    '''
+    This class embeds retweet content using the BERTweet model.
+    It takes a BERTweet model and an optional "not_in_vocabulary_embedding" as input.
+    '''
     def __init__(self, bertweet_model, not_in_vocabulary_embedding: Union[List, np.ndarray]=None):
         self.__bertweet_model = bertweet_model
         self.__embedding_dimensions = 768
@@ -88,7 +123,12 @@ class BERTweetRetweetContentEmbedder:
         else:
             self.__not_in_vocabulary_embedding = not_in_vocabulary_embedding
 
-    def embed(self, tweet: models.Tweet):    
+    def embed(self, tweet: models.Tweet):
+        '''
+        Generates an embedding for the text of a retweet using the BERTweet model.
+        It returns a NumPy array representing the retweet's text embedding.
+        '''
+
         embedding = np.array([])
         if self.__bertweet_model is not None:
 
@@ -101,8 +141,3 @@ class BERTweetRetweetContentEmbedder:
             else:
                 embedding = self.__not_in_vocabulary_embedding
         return embedding
-
-
-
-
-
