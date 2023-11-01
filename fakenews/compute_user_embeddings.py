@@ -32,6 +32,10 @@ class UserProfiles:
 
 
     def _strip_user_profile(self, user_profile, user_embedder):
+        '''
+        Extract user information and generate embeddings from a user profile.
+        '''
+
         if 'done' in user_profile and user_profile['done'] !=  'OK':
             description = ''
             user_profile = models.User(int(user_profile['user_id']))
@@ -47,6 +51,13 @@ class UserProfiles:
 
 
     def run(self):
+        '''  
+        This method loads user profiles, computes embeddings for each user profile,
+        and saves the results to JSON files in the specified output directory. The
+        specific embedding method used (GloVe or BERTweet) depends on the options
+        defined in "options.json" configuration file.
+        '''
+
         # Create output dir
         logging.info("Will output user embeddings to {}".format(self._user_embeddings_path))
         os.makedirs(self._user_embeddings_path, exist_ok=True)
@@ -78,7 +89,12 @@ class UserProfiles:
 
 
 def run(args):
-
+    '''
+    This function reads the configuration options from "options.json" and determines whether
+    user embeddings should be generated. If enabled, it selects the embedding method (GloVe or
+    BERTweet) based on the options and initiates the user embeddings generation process.
+    '''
+    
     with open("options.json", "r") as json_file:
         options = json.load(json_file)
 
