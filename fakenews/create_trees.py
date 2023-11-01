@@ -33,6 +33,7 @@ def _lookup_RT(text):
     This function receives the retweet information (text) and searches the input text for the pattern "RT @username:",
     where username is the retweet source's username. If found, it returns the username; otherwise, it returns None.
     '''
+
     match = re.search(r'RT\s@((\w){1,15}):', text)
     if match: 
         return match.group(1)
@@ -44,6 +45,7 @@ def _find_retweet_source(retweet, previous_retweets):
     Given a retweet and all previous retweers estimate from which 
     retweet it originated.
     """
+
     user = retweet.user
     rt_username = _lookup_RT(retweet.text)
 
@@ -72,6 +74,13 @@ def _find_retweet_source(retweet, previous_retweets):
 
 
 def load_user_from_disk(user_id):
+    '''
+    This function is responsible for loading user information from a JSON file on disk in a User object,
+    based on the provided user ID. The loaded information includes follower count,
+    list count, favorites count, status count, verification information, protection information,
+    and other user profile-related details.
+    '''
+
     #print("Looking for user {}".format(user_id))
     user = models.User(user_id)
 
@@ -89,7 +98,6 @@ def load_user_from_disk(user_id):
         if "done" in user_dict and user_dict["done"] == "ERROR": 
             return user
 
-        #print(user_dict)
         if str(user_dict["id"]) != user_id:
             raise ValueError(
                 "Invalid userid {} in json files".format(str(user_dict["id"]))
@@ -136,6 +144,10 @@ def load_user_from_disk(user_id):
 
 
 def create_tweet(tweet_dict, real):
+    '''
+    Create a Tweet object from a dictionary of tweet data.
+    '''
+
     tweet = models.Tweet(str(tweet_dict["id"]))
     tweet.real = real
     tweet.created_at = datetime.strptime(
@@ -146,6 +158,10 @@ def create_tweet(tweet_dict, real):
     return tweet
 
 def get_user_id(tweet_dict):
+    '''
+    Extract the user ID from a dictionary of tweet data.
+    '''
+
     if "user" in tweet_dict:
         user_id = str(tweet_dict["user"]["id"])
     elif "userid" in tweet_dict:
@@ -155,6 +171,13 @@ def get_user_id(tweet_dict):
     return user_id
 
 def create_tree(tweet_dict, min_retweets): 
+    '''
+    This function processes a dictionary containing tweet data and constructs a tree of retweets.
+    The tree is represented as a directed graph where the original tweet is the root, and subsequent
+    retweets are added as children. The function also validates that the minimum number of retweets
+    required is met, and returns the resulting tree.
+    ''' 
+
     real = tweet_dict["label"] == "real"
     tweet = create_tweet(tweet_dict, real=real)
     tweet.user = load_user_from_disk(get_user_id(tweet_dict))
@@ -199,8 +222,18 @@ def create_tree(tweet_dict, min_retweets):
 
 
 def postprocess_tree(tree):
-    """Given a tree convert vertices to integers and compute features.
-    """
+    '''
+    This function takes a tree represented as a directed graph, where each vertex represents a tweet,
+    and converts it into a processed graph. The processed graph retains the original structure of the tree,
+    but with the following enhancements:
+
+    - Vertices are represented as integers for improved efficiency.
+    - Additional attributes are computed and added to each vertex, including user-related information such as
+      'user_id', 'delay', 'followers_count', 'following_count', 'verified', 'protected', 'favourites_count',
+      'listed_count', and 'statuses_count'.
+    - The 'label' attribute in the graph indicates whether the content is 'real' or 'fake'.
+    '''
+
     p_tree = jgrapht.create_graph(directed=True, any_hashable=True)
 
     vid = 0
@@ -234,7 +267,15 @@ def postprocess_tree(tree):
 
 
 def run(args):
+    '''
+    Process tweet data to create trees of retweets and save them as JSON files.
 
+    This function is responsible for processing tweet data to create trees of retweets.
+    Each tree is represented as a directed graph, with the original tweet at the root and
+    subsequent retweets as children. The resulting trees are saved as JSON files in the
+    specified directories.
+    '''
+    
     random.seed(31)
 
     logging.info("Creating trees")
