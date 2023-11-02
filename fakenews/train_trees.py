@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+'''
+Trains and evaluates a GAT (Graph Attention Network) model on the given dataset.
+'''
+
 import logging
 import argparse
 import jgrapht
@@ -19,6 +23,13 @@ from tqdm import tqdm
 
 
 def tree_to_data(filename):
+    '''
+    This function is responsible for processing and converting a JSON file representing news data propagation (in tree format)
+    into a format suitable for  training a Graph Attention Network (GAT) model. The function extracts relevant features, label
+    information, and constructs  a PyTorch Geometric Data object for graph-based machine learning.
+    This function considers the specifications defined in options.json.
+    '''
+
     logging.debug("Reading {}".format(filename))
 
     with open("options.json", "r") as json_file:
@@ -90,7 +101,12 @@ def tree_to_data(filename):
 
 from torch_geometric.nn.norm import BatchNorm
 from torch_geometric.nn.norm import GraphSizeNorm
+
 class Net(torch.nn.Module):
+    '''
+    This class defines a Graph Attention Network (GAT) model
+    '''
+
     def __init__(self, num_features, num_classes):
         super(Net, self).__init__()
         self.batch_norm = BatchNorm(num_features)
@@ -99,6 +115,10 @@ class Net(torch.nn.Module):
 
 
     def forward(self, data):
+        '''
+        Defines the forward pass of the GAT model.
+        '''
+
         x, edge_index, batch = data.x, data.edge_index, data.batch
         x = self.batch_norm(x)
         x = F.elu(self.conv1(x, edge_index))
@@ -109,6 +129,10 @@ class Net(torch.nn.Module):
 
 
 def train(model, loader, device, optimizer, loss_op):
+    '''
+    Performs a training loop on the GAT (Graph Attention Network) model on a graph dataset.
+    '''
+
     model.train()
 
     total_loss = 0
@@ -133,6 +157,10 @@ from sklearn.metrics import confusion_matrix
 
 @torch.no_grad()
 def test(model, loader, device):
+    '''
+    Evaluates the performance of the GAT (Graph Attention Network) model on the dataset using the test data loader.
+    '''
+
     model.eval()
 
     ys, preds = [], []
@@ -172,6 +200,9 @@ def test(model, loader, device):
 from sklearn.utils import class_weight
 
 def run(root_path):
+    '''
+    Trains and evaluates a GAT (Graph Attention Network) model on the given dataset.
+    '''
 
     logging.info("Loading dags dataset")
 
@@ -272,7 +303,7 @@ if __name__ == "__main__":
         level=logging.INFO,
     )
 
-
+    # Run the 'run' function for multiple datasets and store results
     results = []
     for path in [
         'produced_data/datasets/dataset0',
@@ -287,12 +318,17 @@ if __name__ == "__main__":
         'produced_data/datasets/dataset9',
     ]:
         results.append(run(path))
+
+    # Extract and calculate accuracies from the results
     accuracies = [res[0] for res in results]
     accuracies = np.array(accuracies)
     
+    # Load options from a JSON file
     with open("options.json", "r") as json_file:
         options = json.load(json_file)
 
+    # Generate descriptive messages based on the loaded options
+    # to inform about the type of experiment being conducted
     print()
     if options["user_embeddings"]:
         if options["retweet_embeddings"]:
@@ -317,8 +353,10 @@ if __name__ == "__main__":
             elif options["embedder_type"].lower() == "bertweet":
                 print("The average metrics obtained not using profile embeddings, not using retweet embeddings, and using BERTweet as an embedder are:")
 
+    # Print statistics about accuracy and other metrics
     print(f'Mean accuracy {accuracies.mean()} Std: {accuracies.std()}')
 
+    # Calculate and print precision, recall, and F1-score statistics
     precisions = [res[1] for res in results]
     if all([type(pr) is not str for pr in precisions]):
         precisions = np.array(precisions)
