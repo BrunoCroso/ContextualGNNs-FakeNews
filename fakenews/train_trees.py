@@ -303,6 +303,9 @@ if __name__ == "__main__":
         level=logging.INFO,
     )
 
+    # Defining random seed
+    torch.manual_seed(123)
+
     # Run the 'run' function for multiple datasets and store results
     results = []
     for path in [
