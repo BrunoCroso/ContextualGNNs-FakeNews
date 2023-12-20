@@ -246,6 +246,7 @@ def run(root_path):
         #print(i, len(dataset))
         datasets.append(dataset)
 
+    #test
     # 0 = true, 1 = fake
     train_labels = [i.y.item() for i in datasets[0]]
     weights = class_weight.compute_class_weight(class_weight='balanced', classes=[0, 1],
