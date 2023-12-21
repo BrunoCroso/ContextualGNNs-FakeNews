@@ -9,6 +9,7 @@ import argparse
 import jgrapht
 import json
 import os
+import random
 
 import torch
 import torch.nn.functional as F
@@ -199,7 +200,7 @@ def test(model, loader, device):
 
 from sklearn.utils import class_weight
 
-def run(root_path):
+def run(root_path, num_parts = 4):
     '''
     Trains and evaluates a GAT (Graph Attention Network) model on the given dataset.
     '''
@@ -210,7 +211,11 @@ def run(root_path):
     val_path = os.path.join(root_path, 'val')
     test_path = os.path.join(root_path, 'test')
 
-    datasets = []
+    final_dataset_real = [] # It will contain 3 sublists: train, val and test
+    final_dataset_fake = [] # It will contain 3 sublists: train, val and test
+    all_datasets = [] # This list will contain 4 sublists, each divided into train, val and test
+
+
     for i, path in enumerate([train_path, val_path, test_path]):
         number_of_reals = 0
         dataset_fake = []
@@ -237,6 +242,7 @@ def run(root_path):
 
         number_of_real = len(dataset_real)
         number_of_fake = len(dataset_fake)
+
         multiply_by = int(number_of_real / number_of_fake)
         dataset_fake = dataset_fake * multiply_by
 
@@ -244,55 +250,132 @@ def run(root_path):
         dataset = dataset_real[:number_of_samples] + dataset_fake[:number_of_samples]
         #print('number of samples')
         #print(i, len(dataset))
-        datasets.append(dataset)
+        final_dataset_real.append(dataset_real)
+        final_dataset_fake.append(dataset_fake)
 
-    #test
-    # 0 = true, 1 = fake
-    train_labels = [i.y.item() for i in datasets[0]]
-    weights = class_weight.compute_class_weight(class_weight='balanced', classes=[0, 1],
-                                                        y=train_labels)
 
-    val_labels = [i.y.item() for i in datasets[1]]
-    test_labels = [i.y.item() for i in datasets[2]]
+    # Dividing the datasets in parts
+    # Shuffling the dataset
+    random.shuffle(final_dataset_real[0])
+    random.shuffle(final_dataset_fake[0])
 
-    logging.info('Train dataset size: %s ' % len(train_labels))
-    logging.info('Validation dataset size: %s ' % len(val_labels))
-    logging.info('Test dataset size: %s' % len(test_labels))
+    random.shuffle(final_dataset_real[1])
+    random.shuffle(final_dataset_fake[1])
 
-    print('Number of fake news in train set:%s Number of real news: %s' % (len([i for i in train_labels if i == 1]), len([i for i in train_labels if i == 0])))
-    print('Number of fake news in val set:%s Number of real news: %s' % (len([i for i in val_labels if i == 1]), len([i for i in val_labels if i == 0])))
-    print('Number of fake news in test set:%s Number of real news: %s' % (len([i for i in test_labels if i == 1]), len([i for i in test_labels if i == 0])))
+    random.shuffle(final_dataset_real[2])
+    random.shuffle(final_dataset_fake[2])
 
-    train_loader = DataLoader(datasets[0], batch_size=32, shuffle=True)
-    val_loader = DataLoader(datasets[1], batch_size=4, shuffle=True)
-    test_loader = DataLoader(datasets[2], batch_size=4, shuffle=True)
+    # Defining the part size
+    part_size_train_real = len(final_dataset_real[0]) // num_parts
+    part_size_train_fake = len(final_dataset_fake[0]) // num_parts
     
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = Net(num_features=number_of_features, num_classes=2).to(device)
-    #weights = [4.0, 0.5]
-    #print('weights!!')
-    #print(weights)
-    #class_weights = torch.FloatTensor(weights).cuda()
-    #self.criterion = nn.CrossEntropyLoss(weight=class_weights)
-    #loss_op = torch.nn.NLLLoss(weight=class_weights)
-    loss_op = torch.nn.NLLLoss()
+    part_size_val_real = len(final_dataset_real[1]) // num_parts
+    part_size_val_fake = len(final_dataset_fake[1]) // num_parts
 
-    #optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.5)
+    part_size_test_real = len(final_dataset_real[2]) // num_parts
+    part_size_test_fake = len(final_dataset_fake[2]) // num_parts
 
-    # Start training
-    for epoch in range(1, 21):
-        logging.info("Starting epoch {}".format(epoch))
-        loss = train(model, train_loader, device, optimizer, loss_op)
-        print(loss)
-        #if epoch % 5 == 0:
-        #    val_f1, val_precision, val_recall, val_accuracy = test(model, val_loader, device)
-        #    #print('Epoch: {:02d}, Loss: {:.4f}, Val F1: {:.4f} Val Prec: {:.4f} Val Rec: {:.4f} Val Acc: {:.4f}'.format(epoch, loss, val_f1, val_precision, val_recall, val_accuracy))
+    # Dividing the datasets and appending then in datasets list
+    for i in range(num_parts):
+        final_part = []
 
-    f1, precision, recall, accuracy = test(model, test_loader, device)
-    print(root_path)
-    print(f'Accuracy: {accuracy}, Precision: {precision}, Recall: {recall} F1: {f1}')
-    return [accuracy, precision, recall, f1]
+        # Selecting real part in training dataset
+        start_idx_train_real = i * part_size_train_real
+        end_idx_train_real = (i + 1) * part_size_train_real if i <  num_parts else None
+        part_train_real = final_dataset_real[0][start_idx_train_real:end_idx_train_real]
+
+        # Selecting fake part in training dataset
+        start_idx_train_fake = i * part_size_train_fake
+        end_idx_train_fake = (i + 1) * part_size_train_fake if i < num_parts else None
+        part_train_fake = final_dataset_fake[0][start_idx_train_fake:end_idx_train_fake]
+
+        final_train_part = part_train_real + part_train_fake
+
+        # Selecting real part in validation dataset
+        start_idx_val_real = i * part_size_val_real
+        end_idx_val_real = (i + 1) * part_size_val_real if i < num_parts else None
+        part_val_real = final_dataset_real[1][start_idx_val_real:end_idx_val_real]
+
+        # Selecting fake part in validation dataset
+        start_idx_val_fake = i * part_size_val_fake
+        end_idx_val_fake = (i + 1) * part_size_val_fake if i < num_parts else None
+        part_val_fake = final_dataset_fake[1][start_idx_val_fake:end_idx_val_fake]
+
+        final_val_part = part_val_real + part_val_fake
+
+        # Selecting real part in test dataset
+        start_idx_test_real = i * part_size_test_real
+        end_idx_test_real = (i + 1) * part_size_test_real if i < num_parts else None
+        part_test_real = final_dataset_real[2][start_idx_test_real:end_idx_test_real]
+
+        # Selecting fake part in test dataset
+        start_idx_test_fake = i * part_size_test_fake
+        end_idx_test_fake = (i + 1) * part_size_test_fake if i < num_parts else None
+        part_test_fake = final_dataset_fake[2][start_idx_test_fake:end_idx_test_fake]
+
+        final_test_part = part_test_real + part_test_fake
+
+        # Creatinh thge iº dataset
+        final_part.append(final_train_part)
+        final_part.append(final_val_part)
+        final_part.append(final_test_part)
+
+        # Adding all parts to datasets list
+        all_datasets.append(final_part)
+
+
+    # Performing training on the 4 datasets
+    models_performance = [] # Contais 4 sublists (1 for each model) containing accuracy, precision, recall, f1
+    for datasets in all_datasets:
+        # 0 = true, 1 = fake
+        train_labels = [i.y.item() for i in datasets[0]]
+        weights = class_weight.compute_class_weight(class_weight='balanced', classes=[0, 1],
+                                                            y=train_labels)
+
+        val_labels = [i.y.item() for i in datasets[1]]
+        test_labels = [i.y.item() for i in datasets[2]]
+
+        logging.info('Train dataset size: %s ' % len(train_labels))
+        logging.info('Validation dataset size: %s ' % len(val_labels))
+        logging.info('Test dataset size: %s' % len(test_labels))
+
+        print('Number of fake news in train set:%s Number of real news: %s' % (len([i for i in train_labels if i == 1]), len([i for i in train_labels if i == 0])))
+        print('Number of fake news in val set:%s Number of real news: %s' % (len([i for i in val_labels if i == 1]), len([i for i in val_labels if i == 0])))
+        print('Number of fake news in test set:%s Number of real news: %s' % (len([i for i in test_labels if i == 1]), len([i for i in test_labels if i == 0])))
+
+        train_loader = DataLoader(datasets[0], batch_size=32, shuffle=True)
+        val_loader = DataLoader(datasets[1], batch_size=4, shuffle=True)
+        test_loader = DataLoader(datasets[2], batch_size=4, shuffle=True)
+        
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        model = Net(num_features=number_of_features, num_classes=2).to(device)
+        #weights = [4.0, 0.5]
+        #print('weights!!')
+        #print(weights)
+        #class_weights = torch.FloatTensor(weights).cuda()
+        #self.criterion = nn.CrossEntropyLoss(weight=class_weights)
+        #loss_op = torch.nn.NLLLoss(weight=class_weights)
+        loss_op = torch.nn.NLLLoss()
+
+        #optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.5)
+
+        # Start training
+        for epoch in range(1, 21):
+            logging.info("Starting epoch {}".format(epoch))
+            loss = train(model, train_loader, device, optimizer, loss_op)
+            print(loss)
+            #if epoch % 5 == 0:
+            #    val_f1, val_precision, val_recall, val_accuracy = test(model, val_loader, device)
+            #    #print('Epoch: {:02d}, Loss: {:.4f}, Val F1: {:.4f} Val Prec: {:.4f} Val Rec: {:.4f} Val Acc: {:.4f}'.format(epoch, loss, val_f1, val_precision, val_recall, val_accuracy))
+
+        f1, precision, recall, accuracy = test(model, test_loader, device)
+        print(root_path)
+        print(f'Accuracy: {accuracy}, Precision: {precision}, Recall: {recall} F1: {f1}')
+        models_performance.append([accuracy, precision, recall, f1])
+
+    print(f"Models Performance = {models_performance}") #DELETE____________________________________________
+    return models_performance
     
 
 
@@ -306,6 +389,9 @@ if __name__ == "__main__":
 
     # Defining random seed
     torch.manual_seed(123)
+
+    # Define in how many many parts the dataset will be divides for the training
+    num_parts = 4
 
     # Run the 'run' function for multiple datasets and store results
     results = []
@@ -321,11 +407,9 @@ if __name__ == "__main__":
         'produced_data/datasets/dataset8',
         'produced_data/datasets/dataset9',
     ]:
-        results.append(run(path))
+        results.append(run(path, num_parts))
 
-    # Extract and calculate accuracies from the results
-    accuracies = [res[0] for res in results]
-    accuracies = np.array(accuracies)
+    print(f"Results = \n {results}") #DELETE____________________________________________
     
     # Load options from a JSON file
     with open("options.json", "r") as json_file:
@@ -357,27 +441,57 @@ if __name__ == "__main__":
             elif options["embedder_type"].lower() == "bertweet":
                 print("The average metrics obtained not using profile embeddings, not using retweet embeddings, and using BERTweet as an embedder are:")
 
+
+    # Extract and calculate accuracies from the results
+    accuracies = []        
+    for model in range(num_parts):
+        model_accuracies = []
+        for result in results:
+            model_accuracies.append(result[model][0])
+        accuracies.append(model_accuracies)
+
+    accuracies = np.array(accuracies)
+
     # Print statistics about accuracy and other metrics
-    print(f'Mean accuracy {accuracies.mean()} Std: {accuracies.std()}')
+    print(f'Mean accuracies {accuracies.mean(axis = 1)} Std: {accuracies.std(axis = 1)}')
 
     # Calculate and print precision, recall, and F1-score statistics
-    precisions = [res[1] for res in results]
+    precisions = []        
+    for model in range(num_parts):
+        model_precisions = []
+        for result in results:
+            model_precisions.append(result[model][1])
+        precisions.append(model_precisions)
+
     if all([type(pr) is not str for pr in precisions]):
         precisions = np.array(precisions)
-        print(f'Mean precision {precisions.mean()} Std: {precisions.std()}')
+        print(f'Mean precisions {precisions.mean(axis = 1)} Std: {precisions.std(axis = 1)}')
     else:
         print('Mean precision and std NaN')
 
-    recalls = [res[2] for res in results]
+    recalls = []        
+    for model in range(num_parts):
+        model_recalls = []
+        for result in results:
+            model_recalls.append(result[model][2])
+        recalls.append(model_recalls)
+
     if all([type(pr) is not str for pr in recalls]):
         recalls = np.array(recalls)
-        print(f'Mean recall {recalls.mean()} Std: {recalls.std()}')
+        print(f'Mean recalls {recalls.mean(axis = 1)} Std: {recalls.std(axis = 1)}')
     else:
         print('Mean recall and std NaN')
 
-    f1s = [res[3] for res in results]
+
+    f1s = []        
+    for model in range(num_parts):
+        model_f1s = []
+        for result in results:
+            model_f1s.append(result[model][3])
+        f1s.append(model_f1s)
+
     if all([type(pr) is not str for pr in f1s]):
         f1s = np.array(f1s)
-        print(f'Mean f1 {f1s.mean()} Std: {f1s.std()}')
+        print(f'Mean f1s {f1s.mean(axis = 1)} Std: {f1s.std(axis = 1)}')
     else:
         print('Mean f1 and std NaN')
