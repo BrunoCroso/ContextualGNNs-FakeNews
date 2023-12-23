@@ -10,6 +10,7 @@ import jgrapht
 import json
 import os
 import random
+import pandas as pd
 
 import torch
 import torch.nn.functional as F
@@ -495,3 +496,33 @@ if __name__ == "__main__":
         print(f'Mean f1s {f1s.mean(axis = 1)} Std: {f1s.std(axis = 1)}')
     else:
         print('Mean f1 and std NaN')
+
+    # Saving the results in a csv file
+    embedder = options["embedder_type"].lower()
+    if options["user_embeddings"] == True:
+        profiles = 1
+    else: 
+        profiles = 0
+    if options["retweet_embeddings"] == True:
+        retweets = 1
+    else:
+        retweets = 0
+    
+    Mean_accuracies = accuracies.mean(axis = 1)
+    Mean_precisions = precisions.mean(axis = 1)
+    Mean_recalls = recalls.mean(axis = 1)
+    Mean_f1s = f1s.mean(axis = 1)
+    
+    # Criating a DataFrame with the main results
+    df = pd.DataFrame({
+        'Embedder': embedder,
+        'Profiles': profiles,
+        'Retweets': retweets,
+        'Mean_accuracies': Mean_accuracies,
+        'Mean_precisions': Mean_precisions,
+        'Mean_recalls': Mean_recalls,
+        'Mean_f1s': Mean_f1s
+    })
+
+    # Saving the DataFrame in a csv file
+    df.to_csv('output.csv', index=False)
