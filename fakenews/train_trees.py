@@ -152,7 +152,7 @@ def train(model, loader, device, optimizer, loss_op):
 
 
     print('loader.dataset')
-    print(len(loader.dataset))
+    print(f'Dataset size: {len(loader.dataset)}')
     return total_loss / len(loader.dataset)
 
 from sklearn.metrics import confusion_matrix
@@ -218,7 +218,6 @@ def run(root_path, num_parts = 4):
 
 
     for i, path in enumerate([train_path, val_path, test_path]):
-        number_of_reals = 0
         dataset_fake = []
         dataset_real = []
         for fentry in os.scandir(path):
@@ -241,6 +240,8 @@ def run(root_path, num_parts = 4):
         #    multiply_by = int(multiply_by)
         #    dataset_fake = dataset_fake * multiply_by
 
+        #This part was used to balance the datasets -> it was moved below ___________________DELETE
+        '''
         number_of_real = len(dataset_real)
         number_of_fake = len(dataset_fake)
 
@@ -250,7 +251,8 @@ def run(root_path, num_parts = 4):
         number_of_samples = min(len(dataset_real), len(dataset_fake)) #TESTE
         dataset = dataset_real[:number_of_samples] + dataset_fake[:number_of_samples]
         #print('number of samples')
-        #print(i, len(dataset))
+        #print(i, len(dataset))'''
+
         final_dataset_real.append(dataset_real)
         final_dataset_fake.append(dataset_fake)
 
@@ -290,6 +292,12 @@ def run(root_path, num_parts = 4):
         end_idx_train_fake = (i + 1) * part_size_train_fake if i < num_parts else None
         part_train_fake = final_dataset_fake[0][start_idx_train_fake:end_idx_train_fake]
 
+        # Balancing the final_train_part
+        number_of_real = len(part_train_real)
+        number_of_fake = len(part_train_fake)
+        multiply_by = int(number_of_real / number_of_fake)
+        part_train_fake = part_train_fake * multiply_by
+
         final_train_part = part_train_real + part_train_fake
 
         # Selecting real part in validation dataset
@@ -301,6 +309,12 @@ def run(root_path, num_parts = 4):
         start_idx_val_fake = i * part_size_val_fake
         end_idx_val_fake = (i + 1) * part_size_val_fake if i < num_parts else None
         part_val_fake = final_dataset_fake[1][start_idx_val_fake:end_idx_val_fake]
+
+        # Balancing the final_val_part
+        number_of_real = len(part_val_real)
+        number_of_fake = len(part_val_fake)
+        multiply_by = int(number_of_real / number_of_fake)
+        part_val_fake = part_val_fake * multiply_by
 
         final_val_part = part_val_real + part_val_fake
 
@@ -314,9 +328,15 @@ def run(root_path, num_parts = 4):
         end_idx_test_fake = (i + 1) * part_size_test_fake if i < num_parts else None
         part_test_fake = final_dataset_fake[2][start_idx_test_fake:end_idx_test_fake]
 
+        # Balancing the final_test_part
+        number_of_real = len(part_test_real)
+        number_of_fake = len(part_test_fake)
+        multiply_by = int(number_of_real / number_of_fake)
+        part_test_fake = part_test_fake * multiply_by
+
         final_test_part = part_test_real + part_test_fake
 
-        # Creatinh thge iº dataset
+        # Creating the iº dataset
         final_part.append(final_train_part)
         final_part.append(final_val_part)
         final_part.append(final_test_part)
@@ -327,6 +347,7 @@ def run(root_path, num_parts = 4):
 
     # Performing training on the 4 datasets
     models_performance = [] # Contais 4 sublists (1 for each model) containing accuracy, precision, recall, f1
+    part_index = 1
     for datasets in all_datasets:
         # 0 = true, 1 = fake
         train_labels = [i.y.item() for i in datasets[0]]
@@ -335,6 +356,9 @@ def run(root_path, num_parts = 4):
 
         val_labels = [i.y.item() for i in datasets[1]]
         test_labels = [i.y.item() for i in datasets[2]]
+
+        print(f'\nStarting part {part_index} training')
+        part_index += 1
 
         logging.info('Train dataset size: %s ' % len(train_labels))
         logging.info('Validation dataset size: %s ' % len(val_labels))
@@ -365,13 +389,13 @@ def run(root_path, num_parts = 4):
         for epoch in range(1, 21):
             logging.info("Starting epoch {}".format(epoch))
             loss = train(model, train_loader, device, optimizer, loss_op)
-            print(loss)
+            print(f'Loss: {loss}')
             #if epoch % 5 == 0:
             #    val_f1, val_precision, val_recall, val_accuracy = test(model, val_loader, device)
             #    #print('Epoch: {:02d}, Loss: {:.4f}, Val F1: {:.4f} Val Prec: {:.4f} Val Rec: {:.4f} Val Acc: {:.4f}'.format(epoch, loss, val_f1, val_precision, val_recall, val_accuracy))
 
         f1, precision, recall, accuracy = test(model, test_loader, device)
-        print(root_path)
+        print(f'root path: {root_path}')
         print(f'Accuracy: {accuracy}, Precision: {precision}, Recall: {recall} F1: {f1}')
         models_performance.append([accuracy, precision, recall, f1])
 
@@ -396,6 +420,7 @@ if __name__ == "__main__":
 
     # Run the 'run' function for multiple datasets and store results
     results = []
+    index = 0
     for path in [
         'produced_data/datasets/dataset0',
         'produced_data/datasets/dataset1',
@@ -408,6 +433,9 @@ if __name__ == "__main__":
         'produced_data/datasets/dataset8',
         'produced_data/datasets/dataset9',
     ]:
+        print('\n_____________________________________________________________________________________________________________________________')
+        print(f'Dataset {index}')
+        index += 1
         results.append(run(path, num_parts))
 
     print(f"Results = \n {results}") #DELETE____________________________________________
