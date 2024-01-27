@@ -11,6 +11,7 @@ import json
 import os
 import random
 import pandas as pd
+import copy
 
 import torch
 import torch.nn.functional as F
@@ -158,15 +159,23 @@ def train(model, loader, device, optimizer, loss_op):
 from sklearn.metrics import confusion_matrix
 
 @torch.no_grad()
-def test(model, loader, device):
+def test(model, loader, device, loss_op):
     '''
     Evaluates the performance of the GAT (Graph Attention Network) model on the dataset using the test data loader.
     '''
 
     model.eval()
 
+    total_loss = 0
     ys, preds = [], []
+
     for data in loader:
+        data = data.to(device)
+        y_true = data.y
+        y_pred = model(data)
+        loss = loss_op(y_pred, y_true)
+        total_loss += loss.item() * data.num_graphs
+
         ys.append(data.y)
         out = model(data.to(device))
         preds.append(torch.argmax(out, dim=1).cpu())
@@ -190,6 +199,8 @@ def test(model, loader, device):
 
     accuracy = accuracy_score(y, pred)
 
+    final_loss = total_loss / len(loader.dataset)
+
     #print('y:##############')
     #print(y)
     #print('pred###############')
@@ -197,7 +208,7 @@ def test(model, loader, device):
 
 
     #print('tn:%s fp:%s fn:%s tp:%s' % (tn, fp, fn, tp))
-    return f1, precision, recall, accuracy
+    return f1, precision, recall, accuracy, final_loss
 
 from sklearn.utils import class_weight
 
@@ -299,6 +310,7 @@ def run(root_path, num_parts = 4):
         part_train_fake = part_train_fake * multiply_by
 
         final_train_part = part_train_real + part_train_fake
+        random.shuffle(final_train_part)
 
         # Selecting real part in validation dataset
         start_idx_val_real = i * part_size_val_real
@@ -317,6 +329,7 @@ def run(root_path, num_parts = 4):
         part_val_fake = part_val_fake * multiply_by
 
         final_val_part = part_val_real + part_val_fake
+        random.shuffle(final_val_part)
 
         # Selecting real part in test dataset
         start_idx_test_real = i * part_size_test_real
@@ -335,6 +348,7 @@ def run(root_path, num_parts = 4):
         part_test_fake = part_test_fake * multiply_by
 
         final_test_part = part_test_real + part_test_fake
+        random.shuffle(final_test_part)
 
         # Creating the iº dataset
         final_part.append(final_train_part)
@@ -385,17 +399,38 @@ def run(root_path, num_parts = 4):
         #optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
         optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.5)
 
+        # Creating variables to save the best model
+        best_model = None
+        best_loss = None
+        best_epoch = 1
+
         # Start training
-        for epoch in range(1, 21):
+        for epoch in range(1, 31):
             logging.info("Starting epoch {}".format(epoch))
             loss = train(model, train_loader, device, optimizer, loss_op)
             print(f'Loss: {loss}')
+
+            # Testing the model in the validation set
+            val_f1, val_precision, val_recall, val_accuracy, val_loss = test(model, val_loader, device, loss_op)
+            if best_loss is None:
+                best_loss = val_loss
+
+            if val_loss < best_loss:
+                best_model = copy.deepcopy(model)
+                best_epoch = epoch
+                best_loss = val_loss
+                print('New Best Model!')
+                print(f'val_loss = {val_loss}; best_epoch = {best_epoch}')
+
+
             #if epoch % 5 == 0:
-            #    val_f1, val_precision, val_recall, val_accuracy = test(model, val_loader, device)
+            #    val_f1, val_precision, val_recall, val_accuracy = test(model, val_loader, device, loss_op)
             #    #print('Epoch: {:02d}, Loss: {:.4f}, Val F1: {:.4f} Val Prec: {:.4f} Val Rec: {:.4f} Val Acc: {:.4f}'.format(epoch, loss, val_f1, val_precision, val_recall, val_accuracy))
 
-        f1, precision, recall, accuracy = test(model, test_loader, device)
+        f1, precision, recall, accuracy, loss = test(best_model, test_loader, device, loss_op)
+
         print(f'root path: {root_path}')
+        print(f'best_epoch = {best_epoch}')
         print(f'Accuracy: {accuracy}, Precision: {precision}, Recall: {recall} F1: {f1}')
         models_performance.append([accuracy, precision, recall, f1])
 
