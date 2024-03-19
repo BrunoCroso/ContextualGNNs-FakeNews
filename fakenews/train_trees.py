@@ -626,4 +626,11 @@ if __name__ == "__main__":
     })
 
     # Saving the DataFrame in a csv file
-    df.to_csv('output.csv', index=False)
+    # Checking if the output file already exists and if it's empty
+    output_file = 'output.csv'
+    if os.path.exists(output_file) and not pd.read_csv(output_file).empty:
+        # If the file exists and is not empty, append the new results
+        df.to_csv(output_file, mode='a', header=False, index=False)
+    else:
+        # If the file doesn't exist or is empty, write the new results with headers
+        df.to_csv(output_file, index=False)
