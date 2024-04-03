@@ -114,7 +114,7 @@ class Net(torch.nn.Module):
         super(Net, self).__init__()
         self.batch_norm = BatchNorm(num_features)
         self.conv1 = GATConv(num_features, 32, heads=4, dropout=0.5)
-        self.conv2 = GATConv(32 * 4, num_classes, heads=1, concat=False, dropout=0.5)
+        self.conv2 = GATConv(32 * 4, num_classes, heads=1, concat=False, dropout=0.1)
 
 
     def forward(self, data):
@@ -438,7 +438,7 @@ def run(root_path, num_parts = 4):
         best_epoch = 1
 
         # Start training
-        for epoch in range(1, 31):
+        for epoch in range(1, 101):
             logging.info("Starting epoch {}".format(epoch))
             loss = train(model, train_loader, device, optimizer, loss_op)
             print(f'Loss: {loss}')
@@ -634,3 +634,5 @@ if __name__ == "__main__":
     else:
         # If the file doesn't exist or is empty, write the new results with headers
         df.to_csv(output_file, index=False)
+
+#test
