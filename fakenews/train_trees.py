@@ -240,7 +240,7 @@ def test(model, loader, device, loss_op):
 
 from sklearn.utils import class_weight
 
-def run(root_path, num_parts = 4):
+def run(root_path):
     '''
     Trains and evaluates a GAT (Graph Attention Network) model on the given dataset.
     '''
@@ -251,10 +251,7 @@ def run(root_path, num_parts = 4):
     val_path = os.path.join(root_path, 'val')
     test_path = os.path.join(root_path, 'test')
 
-    final_dataset_real = [] # It will contain 3 sublists: train, val and test
-    final_dataset_fake = [] # It will contain 3 sublists: train, val and test
-    all_datasets = [] # This list will contain 4 sublists, each divided into train, val and test
-
+    datasets = [] # It will contain 3 sublists: train, val and test
 
     for i, path in enumerate([train_path, val_path, test_path]):
         dataset_fake = []
@@ -280,7 +277,7 @@ def run(root_path, num_parts = 4):
         #    dataset_fake = dataset_fake * multiply_by
 
         #This part was used to balance the datasets -> it was moved below ___________________DELETE
-        '''
+        
         number_of_real = len(dataset_real)
         number_of_fake = len(dataset_fake)
 
@@ -290,186 +287,71 @@ def run(root_path, num_parts = 4):
         number_of_samples = min(len(dataset_real), len(dataset_fake)) #TESTE
         dataset = dataset_real[:number_of_samples] + dataset_fake[:number_of_samples]
         #print('number of samples')
-        #print(i, len(dataset))'''
+        #print(i, len(dataset))
 
-        final_dataset_real.append(dataset_real)
-        final_dataset_fake.append(dataset_fake)
+        datasets.append(dataset)
 
+    train_labels = [i.y.item() for i in datasets[0]]
+    weights = class_weight.compute_class_weight(class_weight='balanced', classes=[0, 1],
+                                                        y=train_labels)
+    val_labels = [i.y.item() for i in datasets[1]]
+    test_labels = [i.y.item() for i in datasets[2]]
 
-    # Dividing the datasets in parts
-    # Shuffling the dataset
-    random.shuffle(final_dataset_real[0])
-    random.shuffle(final_dataset_fake[0])
+    logging.info('Train dataset size: %s ' % len(train_labels))
+    logging.info('Validation dataset size: %s ' % len(val_labels))
+    logging.info('Test dataset size: %s' % len(test_labels))
 
-    random.shuffle(final_dataset_real[1])
-    random.shuffle(final_dataset_fake[1])
+    print('Number of fake news in train set:%s Number of real news: %s' % (len([i for i in train_labels if i == 1]), len([i for i in train_labels if i == 0])))
+    print('Number of fake news in val set:%s Number of real news: %s' % (len([i for i in val_labels if i == 1]), len([i for i in val_labels if i == 0])))
+    print('Number of fake news in test set:%s Number of real news: %s' % (len([i for i in test_labels if i == 1]), len([i for i in test_labels if i == 0])))
 
-    random.shuffle(final_dataset_real[2])
-    random.shuffle(final_dataset_fake[2])
-
-    # Defining the part size
-    part_size_train_real = len(final_dataset_real[0]) // num_parts
-    part_size_train_fake = len(final_dataset_fake[0]) // num_parts
+    train_loader = DataLoader(datasets[0], batch_size=32, shuffle=True)
+    val_loader = DataLoader(datasets[1], batch_size=4, shuffle=True)
+    test_loader = DataLoader(datasets[2], batch_size=4, shuffle=True)
     
-    part_size_val_real = len(final_dataset_real[1]) // num_parts
-    part_size_val_fake = len(final_dataset_fake[1]) // num_parts
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = Net(num_features=number_of_features, num_classes=2).to(device)
+    # Neftune parameters
+    with open("options.json", "r") as json_file:
+        options = json.load(json_file)
+    model.batch_norm.neftune_noise_alpha = options["neftune_noise_alpha"]
+    model.batch_norm.register_forward_hook(neftune_post_forward_hook)
+    loss_op = torch.nn.NLLLoss()
 
-    part_size_test_real = len(final_dataset_real[2]) // num_parts
-    part_size_test_fake = len(final_dataset_fake[2]) // num_parts
+    #optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.5)
 
-    # Dividing the datasets and appending then in datasets list
-    for i in range(num_parts):
-        final_part = []
+    # Creating variables to save the best model
+    best_model = None
+    best_loss = None
+    best_epoch = 1
 
-        # Selecting real part in training dataset
-        start_idx_train_real = i * part_size_train_real
-        end_idx_train_real = (i + 1) * part_size_train_real if i <  num_parts else None
-        part_train_real = final_dataset_real[0][start_idx_train_real:end_idx_train_real]
+    # Start training
+    for epoch in range(1, 61):
+        logging.info("Starting epoch {}".format(epoch))
+        loss = train(model, train_loader, device, optimizer, loss_op)
+        print(f'Loss: {loss}')
 
-        # Selecting fake part in training dataset
-        start_idx_train_fake = i * part_size_train_fake
-        end_idx_train_fake = (i + 1) * part_size_train_fake if i < num_parts else None
-        part_train_fake = final_dataset_fake[0][start_idx_train_fake:end_idx_train_fake]
+        # Testing the model in the validation set
+        val_f1, val_precision, val_recall, val_accuracy, val_loss = test(model, val_loader, device, loss_op)
+        if best_loss is None:
+            best_loss = val_loss
 
-        # Balancing the final_train_part
-        number_of_real = len(part_train_real)
-        number_of_fake = len(part_train_fake)
-        multiply_by = int(number_of_real / number_of_fake)
-        part_train_fake = part_train_fake * multiply_by
+        if val_loss < best_loss:
+            best_model = copy.deepcopy(model)
+            best_epoch = epoch
+            best_loss = val_loss
+            print('New Best Model!')
+            print(f'val_loss = {val_loss}; best_epoch = {best_epoch}')
 
-        final_train_part = part_train_real + part_train_fake
-        random.shuffle(final_train_part)
+   
+    f1, precision, recall, accuracy, loss = test(best_model, test_loader, device, loss_op)
 
-        # Selecting real part in validation dataset
-        start_idx_val_real = i * part_size_val_real
-        end_idx_val_real = (i + 1) * part_size_val_real if i < num_parts else None
-        part_val_real = final_dataset_real[1][start_idx_val_real:end_idx_val_real]
+    print(f'root path: {root_path}')
+    print(f'best_epoch = {best_epoch}')
+    print(f'Accuracy: {accuracy}, Precision: {precision}, Recall: {recall} F1: {f1}')
+    return [accuracy, precision, recall, f1, best_epoch]
 
-        # Selecting fake part in validation dataset
-        start_idx_val_fake = i * part_size_val_fake
-        end_idx_val_fake = (i + 1) * part_size_val_fake if i < num_parts else None
-        part_val_fake = final_dataset_fake[1][start_idx_val_fake:end_idx_val_fake]
-
-        # Balancing the final_val_part
-        number_of_real = len(part_val_real)
-        number_of_fake = len(part_val_fake)
-        multiply_by = int(number_of_real / number_of_fake)
-        part_val_fake = part_val_fake * multiply_by
-
-        final_val_part = part_val_real + part_val_fake
-        random.shuffle(final_val_part)
-
-        # Selecting real part in test dataset
-        start_idx_test_real = i * part_size_test_real
-        end_idx_test_real = (i + 1) * part_size_test_real if i < num_parts else None
-        part_test_real = final_dataset_real[2][start_idx_test_real:end_idx_test_real]
-
-        # Selecting fake part in test dataset
-        start_idx_test_fake = i * part_size_test_fake
-        end_idx_test_fake = (i + 1) * part_size_test_fake if i < num_parts else None
-        part_test_fake = final_dataset_fake[2][start_idx_test_fake:end_idx_test_fake]
-
-        # Balancing the final_test_part
-        number_of_real = len(part_test_real)
-        number_of_fake = len(part_test_fake)
-        multiply_by = int(number_of_real / number_of_fake)
-        part_test_fake = part_test_fake * multiply_by
-
-        final_test_part = part_test_real + part_test_fake
-        random.shuffle(final_test_part)
-
-        # Creating the iº dataset
-        final_part.append(final_train_part)
-        final_part.append(final_val_part)
-        final_part.append(final_test_part)
-
-        # Adding all parts to datasets list
-        all_datasets.append(final_part)
-
-
-    # Performing training on the 4 datasets
-    models_performance = [] # Contais 4 sublists (1 for each model) containing accuracy, precision, recall, f1
-    part_index = 1
-    for datasets in all_datasets:
-        # 0 = true, 1 = fake
-        train_labels = [i.y.item() for i in datasets[0]]
-        weights = class_weight.compute_class_weight(class_weight='balanced', classes=[0, 1],
-                                                            y=train_labels)
-
-        val_labels = [i.y.item() for i in datasets[1]]
-        test_labels = [i.y.item() for i in datasets[2]]
-
-        print(f'\nStarting part {part_index} training')
-        part_index += 1
-
-        logging.info('Train dataset size: %s ' % len(train_labels))
-        logging.info('Validation dataset size: %s ' % len(val_labels))
-        logging.info('Test dataset size: %s' % len(test_labels))
-
-        print('Number of fake news in train set:%s Number of real news: %s' % (len([i for i in train_labels if i == 1]), len([i for i in train_labels if i == 0])))
-        print('Number of fake news in val set:%s Number of real news: %s' % (len([i for i in val_labels if i == 1]), len([i for i in val_labels if i == 0])))
-        print('Number of fake news in test set:%s Number of real news: %s' % (len([i for i in test_labels if i == 1]), len([i for i in test_labels if i == 0])))
-
-        train_loader = DataLoader(datasets[0], batch_size=32, shuffle=True)
-        val_loader = DataLoader(datasets[1], batch_size=4, shuffle=True)
-        test_loader = DataLoader(datasets[2], batch_size=4, shuffle=True)
-        
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        model = Net(num_features=number_of_features, num_classes=2).to(device)
-        # Neftune parameters
-        with open("options.json", "r") as json_file:
-            options = json.load(json_file)
-        model.batch_norm.neftune_noise_alpha = options["neftune_noise_alpha"]
-        model.batch_norm.register_forward_hook(neftune_post_forward_hook)
-        #weights = [4.0, 0.5]
-        #print('weights!!')
-        #print(weights)
-        #class_weights = torch.FloatTensor(weights).cuda()
-        #self.criterion = nn.CrossEntropyLoss(weight=class_weights)
-        #loss_op = torch.nn.NLLLoss(weight=class_weights)
-        loss_op = torch.nn.NLLLoss()
-
-        #optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-        optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.5)
-
-        # Creating variables to save the best model
-        best_model = None
-        best_loss = None
-        best_epoch = 1
-
-        # Start training
-        for epoch in range(1, 101):
-            logging.info("Starting epoch {}".format(epoch))
-            loss = train(model, train_loader, device, optimizer, loss_op)
-            print(f'Loss: {loss}')
-
-            # Testing the model in the validation set
-            val_f1, val_precision, val_recall, val_accuracy, val_loss = test(model, val_loader, device, loss_op)
-            if best_loss is None:
-                best_loss = val_loss
-
-            if val_loss < best_loss:
-                best_model = copy.deepcopy(model)
-                best_epoch = epoch
-                best_loss = val_loss
-                print('New Best Model!')
-                print(f'val_loss = {val_loss}; best_epoch = {best_epoch}')
-
-
-            #if epoch % 5 == 0:
-            #    val_f1, val_precision, val_recall, val_accuracy = test(model, val_loader, device, loss_op)
-            #    #print('Epoch: {:02d}, Loss: {:.4f}, Val F1: {:.4f} Val Prec: {:.4f} Val Rec: {:.4f} Val Acc: {:.4f}'.format(epoch, loss, val_f1, val_precision, val_recall, val_accuracy))
-
-        f1, precision, recall, accuracy, loss = test(best_model, test_loader, device, loss_op)
-
-        print(f'root path: {root_path}')
-        print(f'best_epoch = {best_epoch}')
-        print(f'Accuracy: {accuracy}, Precision: {precision}, Recall: {recall} F1: {f1}')
-        models_performance.append([accuracy, precision, recall, f1])
-
-    print(f"Models Performance = {models_performance}") #DELETE____________________________________________
-    return models_performance
-    
 
 
 import numpy as np
@@ -483,8 +365,6 @@ if __name__ == "__main__":
     # Defining random seed
     torch.manual_seed(123)
 
-    # Define in how many many parts the dataset will be divides for the training
-    num_parts = 4
 
     # Run the 'run' function for multiple datasets and store results
     results = []
@@ -504,7 +384,7 @@ if __name__ == "__main__":
         print('\n_____________________________________________________________________________________________________________________________')
         print(f'Dataset {index}')
         index += 1
-        results.append(run(path, num_parts))
+        results.append(run(path))
 
     print(f"Results = \n {results}") #DELETE____________________________________________
     
@@ -544,57 +424,52 @@ if __name__ == "__main__":
 
     # Extract and calculate accuracies from the results
     accuracies = []        
-    for model in range(num_parts):
-        model_accuracies = []
-        for result in results:
-            model_accuracies.append(result[model][0])
-        accuracies.append(model_accuracies)
+    for result in results:
+        accuracies.append(result[0])
 
     accuracies = np.array(accuracies)
 
     # Print statistics about accuracy and other metrics
-    print(f'Mean accuracies {accuracies.mean(axis = 1)} Std: {accuracies.std(axis = 1)}')
+    print(f'Mean accuracies {accuracies.mean()} Std: {accuracies.std()}')
 
     # Calculate and print precision, recall, and F1-score statistics
     precisions = []        
-    for model in range(num_parts):
-        model_precisions = []
-        for result in results:
-            model_precisions.append(result[model][1])
-        precisions.append(model_precisions)
+    for result in results:
+        precisions.append(result[1])
 
     if all([type(pr) is not str for pr in precisions]):
         precisions = np.array(precisions)
-        print(f'Mean precisions {precisions.mean(axis = 1)} Std: {precisions.std(axis = 1)}')
+        print(f'Mean precisions {precisions.mean()} Std: {precisions.std()}')
     else:
         print('Mean precision and std NaN')
 
+
     recalls = []        
-    for model in range(num_parts):
-        model_recalls = []
-        for result in results:
-            model_recalls.append(result[model][2])
-        recalls.append(model_recalls)
+    for result in results:
+        recalls.append(result[2])
 
     if all([type(pr) is not str for pr in recalls]):
         recalls = np.array(recalls)
-        print(f'Mean recalls {recalls.mean(axis = 1)} Std: {recalls.std(axis = 1)}')
+        print(f'Mean recalls {recalls.mean()} Std: {recalls.std()}')
     else:
         print('Mean recall and std NaN')
 
 
     f1s = []        
-    for model in range(num_parts):
-        model_f1s = []
-        for result in results:
-            model_f1s.append(result[model][3])
-        f1s.append(model_f1s)
+    for result in results:
+        f1s.append(result[3])
 
     if all([type(pr) is not str for pr in f1s]):
         f1s = np.array(f1s)
-        print(f'Mean f1s {f1s.mean(axis = 1)} Std: {f1s.std(axis = 1)}')
+        print(f'Mean f1s {f1s.mean()} Std: {f1s.std()}')
     else:
         print('Mean f1 and std NaN')
+
+
+    best_epochs = []        
+    for result in results:
+        best_epochs.append(result[4])
+
 
     # Saving the results in a csv file
     embedder = options["embedder_type"].lower()
@@ -608,21 +483,32 @@ if __name__ == "__main__":
         retweets = 0
     neftune_noise_alpha = options["neftune_noise_alpha"]
 
-    Mean_accuracies = accuracies.mean(axis = 1)
-    Mean_precisions = precisions.mean(axis = 1)
-    Mean_recalls = recalls.mean(axis = 1)
-    Mean_f1s = f1s.mean(axis = 1)
+    Mean_accuracies = accuracies.mean()
+    Mean_precisions = precisions.mean()
+    Mean_recalls = recalls.mean()
+    Mean_f1s = f1s.mean()
+    Std_accuracies = accuracies.std()
+    Std_precisions = precisions.std()
+    Std_recalls = recalls.std()
+    Std_f1s = f1s.std()
+    Best_epochs_string  = '; '.join(best_epochs)
+
     
     # Criating a DataFrame with the main results
     df = pd.DataFrame({
-        'Embedder': embedder,
-        'Profiles': profiles,
-        'Retweets': retweets,
-        'neftune_noise_alpha': neftune_noise_alpha,
-        'Mean_accuracies': Mean_accuracies,
-        'Mean_precisions': Mean_precisions,
-        'Mean_recalls': Mean_recalls,
-        'Mean_f1s': Mean_f1s
+        'Embedder': [embedder],
+        'Profiles': [profiles],
+        'Retweets': [retweets],
+        'neftune_noise_alpha': [neftune_noise_alpha],
+        'Mean_accuracies': [Mean_accuracies],
+        'Mean_precisions': [Mean_precisions],
+        'Mean_recalls': [Mean_recalls],
+        'Mean_f1s': [Mean_f1s],
+        'Std_accuracies': [Std_accuracies],
+        'Std_precisions': [Std_precisions],
+        'Std_recalls': [Std_recalls],
+        'Std_f1s': [Std_f1s],
+        'Best_epochs': [Best_epochs_string]
     })
 
     # Saving the DataFrame in a csv file
@@ -635,4 +521,3 @@ if __name__ == "__main__":
         # If the file doesn't exist or is empty, write the new results with headers
         df.to_csv(output_file, index=False)
 
-#test
