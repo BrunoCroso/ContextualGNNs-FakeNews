@@ -4,10 +4,14 @@
         "user_embeddings: true or false (using only lowercase letters). Depending on the option, the model will consider (or not) the content of the users profile in its prediction.",
         "retweet_embeddings: true or false (using only lowercase letters). Depending on the option, the model will consider (or not) the content of the news retweets in its prediction.",
         "embedder_type: GloVe or BERTweet (both in quotes). This option defines how embeddings will be generated - using GloVe or BERTweet",
-        "neftune_noise_alpha: 0, 5, 10 or 15. An integer used in the NEFTune process"
+        "number_of_models: number_of_models is an integer that represents how many models will be trained with diferent neftune_noise_alpha values",
+        "initial_neftune_noise_alpha: The first model will have neftune_noise_alpha = initial_neftune_noise_alpha",
+        "neftune_noise_alpha_step_size: The iº model will have neftune_noise_alpha = initial_neftune_noise_alpha + (i-1)*neftune_noise_alpha_step_size"
     ],
     "user_embeddings": true,
     "retweet_embeddings": true,
     "embedder_type": "BERTweet",
-    "neftune_noise_alpha": 5
+    "initial_neftune_noise_alpha": 0,
+    "neftune_noise_alpha_step_size": 5,
+    "number_of_models": 5
 }

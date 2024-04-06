@@ -240,7 +240,7 @@ def test(model, loader, device, loss_op):
 
 from sklearn.utils import class_weight
 
-def run(root_path):
+def run(root_path, neftune_noise_alpha):
     '''
     Trains and evaluates a GAT (Graph Attention Network) model on the given dataset.
     '''
@@ -314,7 +314,7 @@ def run(root_path):
     # Neftune parameters
     with open("options.json", "r") as json_file:
         options = json.load(json_file)
-    model.batch_norm.neftune_noise_alpha = options["neftune_noise_alpha"]
+    model.batch_norm.neftune_noise_alpha = neftune_noise_alpha
     model.batch_norm.register_forward_hook(neftune_post_forward_hook)
     loss_op = torch.nn.NLLLoss()
 
@@ -349,7 +349,7 @@ def run(root_path):
 
     print(f'root path: {root_path}')
     print(f'best_epoch = {best_epoch}')
-    print(f'Accuracy: {accuracy}, Precision: {precision}, Recall: {recall} F1: {f1}')
+    print(f'Accuracy: {accuracy}, Precision: {precision}, Recall: {recall}, F1: {f1}')
     return [accuracy, precision, recall, f1, best_epoch]
 
 
@@ -365,159 +365,175 @@ if __name__ == "__main__":
     # Defining random seed
     torch.manual_seed(123)
 
-
-    # Run the 'run' function for multiple datasets and store results
-    results = []
-    index = 0
-    for path in [
-        'produced_data/datasets/dataset0',
-        'produced_data/datasets/dataset1',
-        'produced_data/datasets/dataset2',
-        'produced_data/datasets/dataset3',
-        'produced_data/datasets/dataset4',
-        'produced_data/datasets/dataset5',
-        'produced_data/datasets/dataset6',
-        'produced_data/datasets/dataset7',
-        'produced_data/datasets/dataset8',
-        'produced_data/datasets/dataset9',
-    ]:
-        print('\n_____________________________________________________________________________________________________________________________')
-        print(f'Dataset {index}')
-        index += 1
-        results.append(run(path))
-
-    print(f"Results = \n {results}") #DELETE____________________________________________
-    
     # Load options from a JSON file
     with open("options.json", "r") as json_file:
         options = json.load(json_file)
 
-    neftune_noise_alpha = options["neftune_noise_alpha"]
-    
-    # Generate descriptive messages based on the loaded options
-    # to inform about the type of experiment being conducted
-    print()
-    if options["user_embeddings"]:
-        if options["retweet_embeddings"]:
-            if options["embedder_type"].lower() == "glove":
-                print(f"The average metrics obtained using profile embeddings, using retweet embeddings, using GloVe as an embedder, and neftune_noise_alpha as {neftune_noise_alpha} are:")
-            elif options["embedder_type"].lower() == "bertweet":
-                print(f"The average metrics obtained using profile embeddings, using retweet embeddings, using BERTweet as an embedder, and neftune_noise_alpha as {neftune_noise_alpha} are:")
+    # Training models with diferent neftune_noise_alpha values
+    for model_index in range(options["number_of_models"]):
+        neftune_noise_alpha = options["initial_neftune_noise_alpha"] + model_index*options["neftune_noise_alpha_step_size"]
+
+        print('\n\n_____________________________________________________________________________________________________________________________')
+        print(f'Starting the training with neftune_noise_alpha = {neftune_noise_alpha}')
+        # Run the run() function for multiple datasets and store results
+        results = []
+        index = 0
+        for path in [
+            'produced_data/datasets/dataset0',
+            'produced_data/datasets/dataset1',
+            'produced_data/datasets/dataset2',
+            'produced_data/datasets/dataset3',
+            'produced_data/datasets/dataset4',
+            'produced_data/datasets/dataset5',
+            'produced_data/datasets/dataset6',
+            'produced_data/datasets/dataset7',
+            'produced_data/datasets/dataset8',
+            'produced_data/datasets/dataset9',
+        ]:
+            print('\n_____________________________________________________________________________________________________________________________')
+            print(f'Dataset {index}')
+            index += 1
+            results.append(run(path, neftune_noise_alpha))
+
+            partial_result_dataset_index = 0
+            print('\nApproximate Results so far: ')
+            for result in results:
+                print(f'Dataset {partial_result_dataset_index} -> \tAccuracy: {round(result[0],4)}, \tPrecision: {round(result[1],4)}, \tRecall: {round(result[2],4)}, \tF1: {round(result[3],4)}, \tBest Epoch = {round(result[4],4)}')
+                partial_result_dataset_index += 1
+
+        print(f"\nFinal Approximate Results:")
+        final_result_dataset_index = 0
+        for result in results:
+            print(f'Dataset {final_result_dataset_index} -> \tAccuracy: {round(result[0],4)}, \tPrecision: {round(result[1],4)}, \tRecall: {round(result[2],4)}, \tF1: {round(result[3],4)}, \tBest Epoch = {round(result[4],4)}')
+            final_result_dataset_index += 1
+        
+        # Generate descriptive messages based on the loaded options
+        # to inform about the type of experiment being conducted
+        print()
+        if options["user_embeddings"]:
+            if options["retweet_embeddings"]:
+                if options["embedder_type"].lower() == "glove":
+                    print(f"The average metrics obtained using profile embeddings, using retweet embeddings, using GloVe as an embedder, and neftune_noise_alpha as {neftune_noise_alpha} are:")
+                elif options["embedder_type"].lower() == "bertweet":
+                    print(f"The average metrics obtained using profile embeddings, using retweet embeddings, using BERTweet as an embedder, and neftune_noise_alpha as {neftune_noise_alpha} are:")
+            else:
+                if options["embedder_type"].lower() == "glove":
+                    print(f"The average metrics obtained using profile embeddings, not using retweet embeddings, using GloVe as an embedder, and neftune_noise_alpha as {neftune_noise_alpha} are:")
+                elif options["embedder_type"].lower() == "bertweet":
+                    print(f"The average metrics obtained using profile embeddings, not using retweet embeddings, using BERTweet as an embedder, and neftune_noise_alpha as {neftune_noise_alpha} are:")
         else:
-            if options["embedder_type"].lower() == "glove":
-                print(f"The average metrics obtained using profile embeddings, not using retweet embeddings, using GloVe as an embedder, and neftune_noise_alpha as {neftune_noise_alpha} are:")
-            elif options["embedder_type"].lower() == "bertweet":
-                print(f"The average metrics obtained using profile embeddings, not using retweet embeddings, using BERTweet as an embedder, and neftune_noise_alpha as {neftune_noise_alpha} are:")
-    else:
-        if options["retweet_embeddings"]:
-            if options["embedder_type"].lower() == "glove":
-                print(f"The average metrics obtained not using profile embeddings, using retweet embeddings, using GloVe as an embedder, and neftune_noise_alpha as {neftune_noise_alpha} are:")
-            elif options["embedder_type"].lower() == "bertweet":
-                print(f"The average metrics obtained not using profile embeddings, using retweet embeddings, using BERTweet as an embedder, and neftune_noise_alpha as {neftune_noise_alpha} are:")
+            if options["retweet_embeddings"]:
+                if options["embedder_type"].lower() == "glove":
+                    print(f"The average metrics obtained not using profile embeddings, using retweet embeddings, using GloVe as an embedder, and neftune_noise_alpha as {neftune_noise_alpha} are:")
+                elif options["embedder_type"].lower() == "bertweet":
+                    print(f"The average metrics obtained not using profile embeddings, using retweet embeddings, using BERTweet as an embedder, and neftune_noise_alpha as {neftune_noise_alpha} are:")
+            else:
+                if options["embedder_type"].lower() == "glove":
+                    print(f"The average metrics obtained not using profile embeddings, not using retweet embeddings, using GloVe as an embedder, and neftune_noise_alpha as {neftune_noise_alpha} are:")
+                elif options["embedder_type"].lower() == "bertweet":
+                    print(f"The average metrics obtained not using profile embeddings, not using retweet embeddings, using BERTweet as an embedder, and neftune_noise_alpha as {neftune_noise_alpha} are:")
+
+
+        # Extract and calculate accuracies from the results
+        accuracies = []        
+        for result in results:
+            accuracies.append(result[0])
+
+        accuracies = np.array(accuracies)
+
+        # Print statistics about accuracy and other metrics
+        print(f'Mean accuracies {accuracies.mean()} Std: {accuracies.std()}')
+
+        # Calculate and print precision, recall, and F1-score statistics
+        precisions = []        
+        for result in results:
+            precisions.append(result[1])
+
+        if all([type(pr) is not str for pr in precisions]):
+            precisions = np.array(precisions)
+            print(f'Mean precisions {precisions.mean()} Std: {precisions.std()}')
         else:
-            if options["embedder_type"].lower() == "glove":
-                print(f"The average metrics obtained not using profile embeddings, not using retweet embeddings, using GloVe as an embedder, and neftune_noise_alpha as {neftune_noise_alpha} are:")
-            elif options["embedder_type"].lower() == "bertweet":
-                print(f"The average metrics obtained not using profile embeddings, not using retweet embeddings, using BERTweet as an embedder, and neftune_noise_alpha as {neftune_noise_alpha} are:")
+            print('Mean precision and std NaN')
 
 
+        recalls = []        
+        for result in results:
+            recalls.append(result[2])
 
-    # Extract and calculate accuracies from the results
-    accuracies = []        
-    for result in results:
-        accuracies.append(result[0])
-
-    accuracies = np.array(accuracies)
-
-    # Print statistics about accuracy and other metrics
-    print(f'Mean accuracies {accuracies.mean()} Std: {accuracies.std()}')
-
-    # Calculate and print precision, recall, and F1-score statistics
-    precisions = []        
-    for result in results:
-        precisions.append(result[1])
-
-    if all([type(pr) is not str for pr in precisions]):
-        precisions = np.array(precisions)
-        print(f'Mean precisions {precisions.mean()} Std: {precisions.std()}')
-    else:
-        print('Mean precision and std NaN')
+        if all([type(pr) is not str for pr in recalls]):
+            recalls = np.array(recalls)
+            print(f'Mean recalls {recalls.mean()} Std: {recalls.std()}')
+        else:
+            print('Mean recall and std NaN')
 
 
-    recalls = []        
-    for result in results:
-        recalls.append(result[2])
+        f1s = []        
+        for result in results:
+            f1s.append(result[3])
 
-    if all([type(pr) is not str for pr in recalls]):
-        recalls = np.array(recalls)
-        print(f'Mean recalls {recalls.mean()} Std: {recalls.std()}')
-    else:
-        print('Mean recall and std NaN')
-
-
-    f1s = []        
-    for result in results:
-        f1s.append(result[3])
-
-    if all([type(pr) is not str for pr in f1s]):
-        f1s = np.array(f1s)
-        print(f'Mean f1s {f1s.mean()} Std: {f1s.std()}')
-    else:
-        print('Mean f1 and std NaN')
+        if all([type(pr) is not str for pr in f1s]):
+            f1s = np.array(f1s)
+            print(f'Mean f1s {f1s.mean()} Std: {f1s.std()}')
+        else:
+            print('Mean f1 and std NaN')
 
 
-    best_epochs = []        
-    for result in results:
-        best_epochs.append(result[4])
+        best_epochs_in_strings = []        
+        for result in results:
+            best_epochs_in_strings.append(str(result[4]))
 
+        best_epochs_in_integers = []
+        for result in results:
+            best_epochs_in_integers.append(result[4])
 
-    # Saving the results in a csv file
-    embedder = options["embedder_type"].lower()
-    if options["user_embeddings"] == True:
-        profiles = 1
-    else: 
-        profiles = 0
-    if options["retweet_embeddings"] == True:
-        retweets = 1
-    else:
-        retweets = 0
-    neftune_noise_alpha = options["neftune_noise_alpha"]
+        # Saving the results in a csv file
+        embedder = options["embedder_type"].lower()
+        if options["user_embeddings"] == True:
+            profiles = 1
+        else: 
+            profiles = 0
+        if options["retweet_embeddings"] == True:
+            retweets = 1
+        else:
+            retweets = 0
 
-    Mean_accuracies = accuracies.mean()
-    Mean_precisions = precisions.mean()
-    Mean_recalls = recalls.mean()
-    Mean_f1s = f1s.mean()
-    Std_accuracies = accuracies.std()
-    Std_precisions = precisions.std()
-    Std_recalls = recalls.std()
-    Std_f1s = f1s.std()
-    Best_epochs_string  = '; '.join(best_epochs)
+        Mean_accuracies = accuracies.mean()
+        Mean_precisions = precisions.mean()
+        Mean_recalls = recalls.mean()
+        Mean_f1s = f1s.mean()
+        Std_accuracies = accuracies.std()
+        Std_precisions = precisions.std()
+        Std_recalls = recalls.std()
+        Std_f1s = f1s.std()
+        Best_epochs_string  = ' - '.join(best_epochs_in_strings)
+        Mean_best_epoch = np.mean(best_epochs_in_integers)
 
-    
-    # Criating a DataFrame with the main results
-    df = pd.DataFrame({
-        'Embedder': [embedder],
-        'Profiles': [profiles],
-        'Retweets': [retweets],
-        'neftune_noise_alpha': [neftune_noise_alpha],
-        'Mean_accuracies': [Mean_accuracies],
-        'Mean_precisions': [Mean_precisions],
-        'Mean_recalls': [Mean_recalls],
-        'Mean_f1s': [Mean_f1s],
-        'Std_accuracies': [Std_accuracies],
-        'Std_precisions': [Std_precisions],
-        'Std_recalls': [Std_recalls],
-        'Std_f1s': [Std_f1s],
-        'Best_epochs': [Best_epochs_string]
-    })
+        
+        # Criating a DataFrame with the main results
+        df = pd.DataFrame({
+            'Embedder': [embedder],
+            'Profiles': [profiles],
+            'Retweets': [retweets],
+            'neftune_noise_alpha': [neftune_noise_alpha],
+            'Mean_accuracies': [Mean_accuracies],
+            'Mean_precisions': [Mean_precisions],
+            'Mean_recalls': [Mean_recalls],
+            'Mean_f1s': [Mean_f1s],
+            'Std_accuracies': [Std_accuracies],
+            'Std_precisions': [Std_precisions],
+            'Std_recalls': [Std_recalls],
+            'Std_f1s': [Std_f1s],
+            'Best_epochs': [Best_epochs_string],
+            'Mean best epoch': [Mean_best_epoch]
+        })
 
-    # Saving the DataFrame in a csv file
-    # Checking if the output file already exists and if it's empty
-    output_file = 'output.csv'
-    if os.path.exists(output_file) and not pd.read_csv(output_file).empty:
-        # If the file exists and is not empty, append the new results
-        df.to_csv(output_file, mode='a', header=False, index=False)
-    else:
-        # If the file doesn't exist or is empty, write the new results with headers
-        df.to_csv(output_file, index=False)
+        # Saving the DataFrame in a csv file
+        # Checking if the output file already exists and if it's empty
+        output_file = 'output.csv'
+        if os.path.exists(output_file) and not pd.read_csv(output_file).empty:
+            # If the file exists and is not empty, append the new results
+            df.to_csv(output_file, mode='a', header=False, index=False)
+        else:
+            # If the file doesn't exist or is empty, write the new results with headers
+            df.to_csv(output_file, index=False)
 
