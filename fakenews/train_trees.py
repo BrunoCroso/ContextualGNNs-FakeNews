@@ -335,7 +335,11 @@ def run(root_path, neftune_noise_alpha):
         # Testing the model in the validation set
         val_f1, val_precision, val_recall, val_accuracy, val_loss = test(model, val_loader, device, loss_op)
         if best_loss is None:
+            best_model = copy.deepcopy(model)
+            best_epoch = epoch
             best_loss = val_loss
+            print('New Best Model!')
+            print(f'val_loss = {val_loss}; best_epoch = {best_epoch}')
 
         if val_loss < best_loss:
             best_model = copy.deepcopy(model)
