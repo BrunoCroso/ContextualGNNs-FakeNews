@@ -18,6 +18,13 @@ import torch.nn.functional as F
 from torch_geometric.data import Dataset, Data, DataLoader
 from torch_geometric.nn import GATConv, global_mean_pool
 from torch_geometric.transforms import NormalizeFeatures
+from sklearn.metrics import roc_auc_score
+from sklearn.metrics import auc
+from sklearn.metrics import average_precision_score, precision_recall_curve
+from imblearn.metrics import geometric_mean_score
+from sklearn.metrics import brier_score_loss
+
+
 
 from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score
 from sklearn.model_selection import train_test_split
@@ -225,6 +232,8 @@ def test(model, loader, device, loss_op):
     except ZeroDivisionError:
         f1 = 'NaN'
 
+    
+    
     accuracy = accuracy_score(y, pred)
 
     final_loss = total_loss / len(loader.dataset)
@@ -234,9 +243,24 @@ def test(model, loader, device, loss_op):
     #print('pred###############')
     #print(pred)
 
+    roc_auc = roc_auc_score(y, pred)
+
+    precision_vector, recall_vector, thresholds_vector = precision_recall_curve(y, pred)
+
+    # Use AUC function to calculate the area under the curve of precision recall curve
+    auc_precision_recall = auc(recall_vector, precision_vector)
+
+    geom_mean_score = geometric_mean_score(y, pred)
+
+    brier_score = brier_score_loss(y, pred)
+
+    f1_macro = f1_score(y, pred, average='macro')
+    f1_micro = f1_score(y, pred, average='micro')
+    f1_weighted = f1_score(y, pred, average='weighted')
+    f1_binary = f1_score(y, pred, average='binary')
 
     #print('tn:%s fp:%s fn:%s tp:%s' % (tn, fp, fn, tp))
-    return f1, precision, recall, accuracy, final_loss
+    return f1, precision, recall, accuracy, final_loss, roc_auc, auc_precision_recall, geom_mean_score, brier_score, f1_macro, f1_micro, f1_weighted, f1_binary
 
 from sklearn.utils import class_weight
 
@@ -264,36 +288,54 @@ def run(root_path, neftune_noise_alpha):
                 elif label == "fake":
                     dataset_fake.append(t)
 
-        #number_of_samples = min(len(dataset_real), len(dataset_fake))
-        #number_of_samples = 5000000                #COMENTEI ESTA LINHA PARA TESTAR
 
-        #number_of_real = len(dataset_real)
-        #number_of_fake = len(dataset_fake)
-        #if i == 0:
-        #    multiply_by = number_of_real / number_of_fake
-        #    print('multiply by')
-        #    print(multiply_by)
-        #    multiply_by = int(multiply_by)
-        #    dataset_fake = dataset_fake * multiply_by
 
-        #This part was used to balance the datasets -> it was moved below ___________________DELETE
-        
-        number_of_real = len(dataset_real)
-        number_of_fake = len(dataset_fake)
+        #This part was used to balance the train dataset (upsampling)
+        if path == train_path:
 
-        multiply_by = int(number_of_real / number_of_fake)
-        dataset_fake = dataset_fake * multiply_by
+            # Upsampling
+            
+            number_of_real = len(dataset_real)
+            number_of_fake = len(dataset_fake)
 
-        number_of_samples = min(len(dataset_real), len(dataset_fake)) #TESTE
-        dataset = dataset_real[:number_of_samples] + dataset_fake[:number_of_samples]
-        #print('number of samples')
-        #print(i, len(dataset))
+            multiply_by = int(number_of_real / number_of_fake)
+            dataset_fake = dataset_fake * multiply_by
+
+            number_of_samples = min(len(dataset_real), len(dataset_fake)) 
+            dataset = dataset_real[:number_of_samples] + dataset_fake[:number_of_samples] 
+
+            # Unbalanced
+            '''
+            dataset = dataset_real + dataset_fake'''
+
+            # Downsampling
+            '''
+            number_of_real = len(dataset_real)
+            number_of_fake = len(dataset_fake)
+
+            number_of_samples_downsampling = min(number_of_real, number_of_fake)
+
+            random.shuffle(dataset_real)
+            random.shuffle(dataset_fake)
+
+            dataset = dataset_real[:number_of_samples_downsampling] + dataset_fake[:number_of_samples_downsampling]'''
+
+        else:
+            dataset = dataset_real + dataset_fake
 
         datasets.append(dataset)
 
     train_labels = [i.y.item() for i in datasets[0]]
+
+    # Convertendo os rótulos para uma representação sequencial começando em 0
+    train_labels_seq = [int(label) - min(train_labels) for label in train_labels]
+
+    # Ordenando os rótulos sequenciais
+    train_labels_seq.sort()
+
     weights = class_weight.compute_class_weight(class_weight='balanced', classes=[0, 1],
-                                                        y=train_labels)
+                                                        y=train_labels_seq)
+    
     val_labels = [i.y.item() for i in datasets[1]]
     test_labels = [i.y.item() for i in datasets[2]]
 
@@ -311,11 +353,26 @@ def run(root_path, neftune_noise_alpha):
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = Net(num_features=number_of_features, num_classes=2).to(device)
+
     # Neftune parameters
     with open("options.json", "r") as json_file:
         options = json.load(json_file)
+
     model.batch_norm.neftune_noise_alpha = neftune_noise_alpha
     model.batch_norm.register_forward_hook(neftune_post_forward_hook)
+
+    # Teste
+    #weights = [0.5, 4.5]
+    #print('weights!!')
+
+    
+    #print('Class weights:', weights)
+    #class_weights = torch.FloatTensor(weights).to(device)
+    #criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
+    #loss_op = torch.nn.NLLLoss(weight=class_weights)
+    
+
+    # Descomentar esse trecho se precisar
     loss_op = torch.nn.NLLLoss()
 
     #optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -324,6 +381,8 @@ def run(root_path, neftune_noise_alpha):
     # Creating variables to save the best model
     best_model = None
     best_loss = None
+    best_PR_AUC = None
+    best_brier_score = None
     best_epoch = 1
 
     # Start training
@@ -332,8 +391,21 @@ def run(root_path, neftune_noise_alpha):
         loss = train(model, train_loader, device, optimizer, loss_op)
         print(f'Loss: {loss}')
 
+        # Checking the metrics obtained in the training set
+        train_f1, train_precision, train_recall, train_accuracy, train_loss, train_roc_auc, train_auc_precision_recall, train_geometric_mean_score, train_brier_score_loss, train_f1_macro, train_f1_micro, train_f1_weighted, train_f1_binary = test(model, train_loader, device, loss_op)
+        print(f'Metrics in training dataset:')
+        print(f'Accuracy: {round(train_accuracy, 4)}, \tPrecision: {round(train_precision, 4)}, \tRecall: {round(train_recall, 4)}, \tF1: {round(train_f1, 4)}, \t\tROC AUC: {round(train_roc_auc, 4)}, \tPrecision-Recall AUC: {round(train_auc_precision_recall, 4)}')
+        print(f'G-Means: {round(train_geometric_mean_score, 4)}, \tBrier Score: {round(train_brier_score_loss, 4)}, \tf1_macro: {round(train_f1_macro, 4)}, \tf1_micro: {round(train_f1_micro, 4)}, \tf1_weighted: {round(train_f1_weighted, 4)}, \tf1_binary: {round(train_f1_binary, 4)}')
+
         # Testing the model in the validation set
-        val_f1, val_precision, val_recall, val_accuracy, val_loss = test(model, val_loader, device, loss_op)
+        val_f1, val_precision, val_recall, val_accuracy, val_loss, val_roc_auc, val_auc_precision_recall, val_geometric_mean_score, val_brier_score_loss, val_f1_macro, val_f1_micro, val_f1_weighted, val_f1_binary = test(model, val_loader, device, loss_op)
+        print()
+        print(f'Metrics in validation dataset:')
+        print(f'Accuracy: {round(val_accuracy, 4)}, \tPrecision: {round(val_precision, 4)}, \tRecall: {round(val_recall, 4)}, \tF1: {round(val_f1, 4)}, \t\tROC AUC: {round(val_roc_auc, 4)}, \tPrecision-Recall AUC: {round(val_auc_precision_recall, 4)}')
+        print(f'G-Means: {round(val_geometric_mean_score, 4)}, \tBrier Score: {round(val_brier_score_loss, 4)}, \tf1_macro: {round(val_f1_macro, 4)}, \tf1_micro: {round(val_f1_micro, 4)}, \tf1_weighted: {round(val_f1_weighted, 4)}, \tf1_binary: {round(val_f1_binary, 4)}')
+        
+        
+        # This part uses loss to define the best model
         if best_loss is None:
             best_model = copy.deepcopy(model)
             best_epoch = epoch
@@ -347,14 +419,53 @@ def run(root_path, neftune_noise_alpha):
             best_loss = val_loss
             print('New Best Model!')
             print(f'val_loss = {val_loss}; best_epoch = {best_epoch}')
+            
+            
+        
+        '''
+        # This part PR AUC loss to define the best model
+        if best_PR_AUC is None:
+            best_model = copy.deepcopy(model)
+            best_epoch = epoch
+            best_PR_AUC = val_auc_precision_recall
+            print('New Best Model!')
+            print(f'val_auc_precision_recall = {val_auc_precision_recall}; best_epoch = {best_epoch}')
 
+        if val_auc_precision_recall > best_PR_AUC:
+            best_model = copy.deepcopy(model)
+            best_epoch = epoch
+            best_PR_AUC = val_auc_precision_recall
+            print('New Best Model!')
+            print(f'val_auc_precision_recall = {val_auc_precision_recall}; best_epoch = {best_epoch}')
+        '''
+
+        '''
+        # This part uses brier score to define the best model
+        if best_brier_score is None:
+            best_model = copy.deepcopy(model)
+            best_epoch = epoch
+            best_brier_score = val_brier_score_loss
+            print('New Best Model!')
+            print(f'val_brier_score_loss = {val_brier_score_loss}; best_epoch = {best_epoch}')
+
+        if val_brier_score_loss < best_brier_score:
+            best_model = copy.deepcopy(model)
+            best_epoch = epoch
+            best_brier_score = val_brier_score_loss
+            print('New Best Model!')
+            print(f'val_brier_score_loss = {val_brier_score_loss}; best_epoch = {best_epoch}')
+        '''
+
+        print('')
    
-    f1, precision, recall, accuracy, loss = test(best_model, test_loader, device, loss_op)
+    f1, precision, recall, accuracy, loss, roc_auc, auc_precision_recall, geometric_mean_score, brier_score_loss, f1_macro, f1_micro, f1_weighted, f1_binary = test(best_model, test_loader, device, loss_op)
 
     print(f'root path: {root_path}')
     print(f'best_epoch = {best_epoch}')
-    print(f'Accuracy: {accuracy}, Precision: {precision}, Recall: {recall}, F1: {f1}')
-    return [accuracy, precision, recall, f1, best_epoch]
+    print(f'Accuracy: {round(accuracy, 4)}, \tPrecision: {round(precision, 4)}, \tRecall: {round(recall, 4)}, \tF1: {round(f1, 4)}, \t\tROC AUC: {round(roc_auc, 4)}, \tPrecision-Recall AUC: {round(auc_precision_recall, 4)}')
+    print(f'G-Means: {round(geometric_mean_score, 4)}, \tBrier Score: {round(brier_score_loss, 4)}, \tf1_macro: {round(f1_macro, 4)}, \tf1_micro: {round(f1_micro, 4)}, \tf1_weighted: {round(f1_weighted, 4)}, \tf1_binary: {round(f1_binary, 4)}')
+    
+    return [accuracy, precision, recall, f1, best_epoch, roc_auc, auc_precision_recall, geometric_mean_score, brier_score_loss, f1_macro, f1_micro, f1_weighted, f1_binary]
 
 
 
@@ -402,13 +513,17 @@ if __name__ == "__main__":
             partial_result_dataset_index = 0
             print('\nApproximate Results so far: ')
             for result in results:
-                print(f'Dataset {partial_result_dataset_index} -> \tAccuracy: {round(result[0],4)}, \tPrecision: {round(result[1],4)}, \tRecall: {round(result[2],4)}, \tF1: {round(result[3],4)}, \tBest Epoch = {round(result[4],4)}')
+                print(f'Dataset {partial_result_dataset_index} -> \tAccuracy: {round(result[0],4)}, \tPrecision: {round(result[1],4)}, \tRecall: {round(result[2],4)}, \tF1: {round(result[3],4)}, \tBest Epoch = {round(result[4],4)}, \tROC AUC = {round(result[5],4)}, \tAUC Precision Recall = {round(result[6],4)}')
+                print(f'Dataset {partial_result_dataset_index} -> \tG-Mean = {round(result[7],4)}, \tBrier Score = {round(result[8],4)}, \tf1_macro: {round(result[9], 4)}, \tf1_micro: {round(result[10], 4)}, \tf1_weighted: {round(result[11], 4)}, \tf1_binary: {round(result[12], 4)}')
+                print('')
                 partial_result_dataset_index += 1
 
         print(f"\nFinal Approximate Results:")
         final_result_dataset_index = 0
         for result in results:
-            print(f'Dataset {final_result_dataset_index} -> \tAccuracy: {round(result[0],4)}, \tPrecision: {round(result[1],4)}, \tRecall: {round(result[2],4)}, \tF1: {round(result[3],4)}, \tBest Epoch = {round(result[4],4)}')
+            print(f'Dataset {partial_result_dataset_index} -> \tAccuracy: {round(result[0],4)}, \tPrecision: {round(result[1],4)}, \tRecall: {round(result[2],4)}, \tF1: {round(result[3],4)}, \tBest Epoch = {round(result[4],4)}, \tROC AUC = {round(result[5],4)}, \tAUC Precision Recall = {round(result[6],4)}')
+            print(f'Dataset {partial_result_dataset_index} -> \tG-Mean = {round(result[7],4)}, \tBrier Score = {round(result[8],4)}, \tf1_macro: {round(result[9], 4)}, \tf1_micro: {round(result[10], 4)}, \tf1_weighted: {round(result[11], 4)}, \tf1_binary: {round(result[12], 4)}')
+            print('')            
             final_result_dataset_index += 1
         
         # Generate descriptive messages based on the loaded options
@@ -446,7 +561,7 @@ if __name__ == "__main__":
         accuracies = np.array(accuracies)
 
         # Print statistics about accuracy and other metrics
-        print(f'Mean accuracies {accuracies.mean()} Std: {accuracies.std()}')
+        print(f'Mean accuracies: {accuracies.mean()} Std: {accuracies.std()}')
 
         # Calculate and print precision, recall, and F1-score statistics
         precisions = []        
@@ -455,7 +570,7 @@ if __name__ == "__main__":
 
         if all([type(pr) is not str for pr in precisions]):
             precisions = np.array(precisions)
-            print(f'Mean precisions {precisions.mean()} Std: {precisions.std()}')
+            print(f'Mean precisions: {precisions.mean()} Std: {precisions.std()}')
         else:
             print('Mean precision and std NaN')
 
@@ -466,7 +581,7 @@ if __name__ == "__main__":
 
         if all([type(pr) is not str for pr in recalls]):
             recalls = np.array(recalls)
-            print(f'Mean recalls {recalls.mean()} Std: {recalls.std()}')
+            print(f'Mean recalls: {recalls.mean()} Std: {recalls.std()}')
         else:
             print('Mean recall and std NaN')
 
@@ -477,7 +592,7 @@ if __name__ == "__main__":
 
         if all([type(pr) is not str for pr in f1s]):
             f1s = np.array(f1s)
-            print(f'Mean f1s {f1s.mean()} Std: {f1s.std()}')
+            print(f'Mean f1s: {f1s.mean()} Std: {f1s.std()}')
         else:
             print('Mean f1 and std NaN')
 
@@ -489,6 +604,64 @@ if __name__ == "__main__":
         best_epochs_in_integers = []
         for result in results:
             best_epochs_in_integers.append(result[4])
+
+        ROC_AUCs = []        
+        for result in results:
+            ROC_AUCs.append(result[5])
+
+        ROC_AUCs = np.array(ROC_AUCs)
+
+        print(f'Mean ROC AUC: {ROC_AUCs.mean()} Std: {ROC_AUCs.std()}')
+
+
+        AUC_precision_recalls = []        
+        for result in results:
+            AUC_precision_recalls.append(result[6])
+
+        AUC_precision_recalls = np.array(AUC_precision_recalls)
+
+        print(f'Mean AUC Precision Recall: {AUC_precision_recalls.mean()} Std: {AUC_precision_recalls.std()}')
+
+
+        G_Means = []        
+        for result in results:
+            G_Means.append(result[7])
+
+        G_Means = np.array(G_Means)
+
+        print(f'Mean G-Means: {G_Means.mean()} Std: {G_Means.std()}')
+
+
+        Brier_scores = []        
+        for result in results:
+            Brier_scores.append(result[8])
+
+        Brier_scores = np.array(Brier_scores)
+
+        print(f'Mean Brier Score: {Brier_scores.mean()} Std: {Brier_scores.std()}')
+
+
+        f1_macros = []  
+        f1_micros = []  
+        f1_weighteds = []  
+        f1_binarys = []  
+
+        for result in results:
+            f1_macros.append(result[9])
+            f1_micros.append(result[10])
+            f1_weighteds.append(result[11])
+            f1_binarys.append(result[12])
+
+        f1_macros = np.array(f1_macros)
+        f1_micros = np.array(f1_micros)
+        f1_weighteds = np.array(f1_weighteds)
+        f1_binarys = np.array(f1_binarys)
+
+        print(f'Mean f1_macros: {f1_macros.mean()} Std: {f1_macros.std()}')
+        print(f'Mean f1_micros: {f1_micros.mean()} Std: {f1_micros.std()}')
+        print(f'Mean f1_weighteds: {f1_weighteds.mean()} Std: {f1_weighteds.std()}')
+        print(f'Mean f1_binarys: {f1_binarys.mean()} Std: {f1_binarys.std()}')
+        
 
         # Saving the results in a csv file
         embedder = options["embedder_type"].lower()
@@ -505,10 +678,28 @@ if __name__ == "__main__":
         Mean_precisions = precisions.mean()
         Mean_recalls = recalls.mean()
         Mean_f1s = f1s.mean()
+        Mean_ROC_AUC = ROC_AUCs.mean()
+        Mean_AUC_precision_recall = AUC_precision_recalls.mean()
+        Mean_G_Means = G_Means.mean()
+        Mean_brier_score = Brier_scores.mean()
+        Mean_f1_macro = f1_macros.mean()
+        Mean_f1_micro = f1_micros.mean()
+        Mean_f1_weighted = f1_weighteds.mean()
+        Mean_f1_binary = f1_binarys.mean()
+
         Std_accuracies = accuracies.std()
         Std_precisions = precisions.std()
         Std_recalls = recalls.std()
         Std_f1s = f1s.std()
+        Std_ROC_AUC = ROC_AUCs.std()
+        Std_AUC_precision_recall = AUC_precision_recalls.std()
+        Std_G_Means = G_Means.std()
+        Std_brier_score = Brier_scores.std()
+        Std_f1_macro = f1_macros.std()
+        Std_f1_micro = f1_micros.std()
+        Std_f1_weighted = f1_weighteds.std()
+        Std_f1_binary = f1_binarys.std()
+
         Best_epochs_string  = ' - '.join(best_epochs_in_strings)
         Mean_best_epoch = np.mean(best_epochs_in_integers)
 
@@ -523,10 +714,26 @@ if __name__ == "__main__":
             'Mean_precisions': [Mean_precisions],
             'Mean_recalls': [Mean_recalls],
             'Mean_f1s': [Mean_f1s],
+            'Mean_ROC_AUC': [Mean_ROC_AUC],
+            'Mean_AUC_precision_recall': [Mean_AUC_precision_recall],
+            'Mean_G_Means': [Mean_G_Means],
+            'Mean_brier_score': [Mean_brier_score],
+            'Mean_f1_macro': [Mean_f1_macro],
+            'Mean_f1_micro': [Mean_f1_micro],
+            'Mean_f1_weighted': [Mean_f1_weighted],
+            'Mean_f1_binary': [Mean_f1_binary],
             'Std_accuracies': [Std_accuracies],
             'Std_precisions': [Std_precisions],
             'Std_recalls': [Std_recalls],
             'Std_f1s': [Std_f1s],
+            'Std_ROC_AUC': [Std_ROC_AUC],
+            'Std_AUC_precision_recall': [Std_AUC_precision_recall],
+            'Std_G_Means': [Std_G_Means],
+            'Std_brier_score': [Std_brier_score],
+            'Std_f1_macro': [Std_f1_macro],
+            'Std_f1_micro': [Std_f1_micro],
+            'Std_f1_weighted': [Std_f1_weighted],
+            'Std_f1_binary': [Std_f1_binary],
             'Best_epochs': [Best_epochs_string],
             'Mean best epoch': [Mean_best_epoch]
         })
