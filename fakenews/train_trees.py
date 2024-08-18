@@ -156,14 +156,24 @@ def neftune_post_forward_hook(module, input, output):
         output (`torch.Tensor`):
             The output tensor of the model (i.e. the embeddings).
     """
+    
     if module.training:
         try:
-            dims = torch.tensor(output.size(1))
-            mag_norm = module.neftune_noise_alpha / torch.sqrt(dims)
-            output = output + torch.zeros_like(output).uniform_(-mag_norm, mag_norm)
+            sparse_features = output[:, :8]
+            dense_features = output[:, 8:]
+
+            if dense_features.size(1) > 0:
+                dims = torch.tensor(dense_features.size(1))
+                mag_norm = module.neftune_noise_alpha / torch.sqrt(dims)
+                dense_features = dense_features + torch.zeros_like(dense_features).uniform_(-mag_norm, mag_norm)
+                output = torch.cat((sparse_features, dense_features), dim=1)
+
+            else:
+                return output
         except:
             print('ERROR')
             print(output[0].shape)
+    
     return output
 
 def train(model, loader, device, optimizer, loss_op):
@@ -477,15 +487,16 @@ if __name__ == "__main__":
         level=logging.INFO,
     )
 
-    # Defining random seed
-    torch.manual_seed(123)
-
     # Load options from a JSON file
     with open("options.json", "r") as json_file:
         options = json.load(json_file)
 
     # Training models with diferent neftune_noise_alpha values
     for model_index in range(options["number_of_models"]):
+        
+        # Defining random seed
+        torch.manual_seed(123)
+        
         neftune_noise_alpha = options["initial_neftune_noise_alpha"] + model_index*options["neftune_noise_alpha_step_size"]
 
         print('\n\n_____________________________________________________________________________________________________________________________')
@@ -521,8 +532,8 @@ if __name__ == "__main__":
         print(f"\nFinal Approximate Results:")
         final_result_dataset_index = 0
         for result in results:
-            print(f'Dataset {partial_result_dataset_index} -> \tAccuracy: {round(result[0],4)}, \tPrecision: {round(result[1],4)}, \tRecall: {round(result[2],4)}, \tF1: {round(result[3],4)}, \tBest Epoch = {round(result[4],4)}, \tROC AUC = {round(result[5],4)}, \tAUC Precision Recall = {round(result[6],4)}')
-            print(f'Dataset {partial_result_dataset_index} -> \tG-Mean = {round(result[7],4)}, \tBrier Score = {round(result[8],4)}, \tf1_macro: {round(result[9], 4)}, \tf1_micro: {round(result[10], 4)}, \tf1_weighted: {round(result[11], 4)}, \tf1_binary: {round(result[12], 4)}')
+            print(f'Dataset {final_result_dataset_index} -> \tAccuracy: {round(result[0],4)}, \tPrecision: {round(result[1],4)}, \tRecall: {round(result[2],4)}, \tF1: {round(result[3],4)}, \tBest Epoch = {round(result[4],4)}, \tROC AUC = {round(result[5],4)}, \tAUC Precision Recall = {round(result[6],4)}')
+            print(f'Dataset {final_result_dataset_index} -> \tG-Mean = {round(result[7],4)}, \tBrier Score = {round(result[8],4)}, \tf1_macro: {round(result[9], 4)}, \tf1_micro: {round(result[10], 4)}, \tf1_weighted: {round(result[11], 4)}, \tf1_binary: {round(result[12], 4)}')
             print('')            
             final_result_dataset_index += 1
         
@@ -704,7 +715,7 @@ if __name__ == "__main__":
         Mean_best_epoch = np.mean(best_epochs_in_integers)
 
         
-        # Criating a DataFrame with the main results
+        # Creating a DataFrame with the main results
         df = pd.DataFrame({
             'Embedder': [embedder],
             'Profiles': [profiles],
@@ -740,11 +751,46 @@ if __name__ == "__main__":
 
         # Saving the DataFrame in a csv file
         # Checking if the output file already exists and if it's empty
-        output_file = 'output.csv'
-        if os.path.exists(output_file) and not pd.read_csv(output_file).empty:
+        summarized_output_file = 'summarized_output.csv'
+        if os.path.exists(summarized_output_file) and not pd.read_csv(summarized_output_file).empty:
             # If the file exists and is not empty, append the new results
-            df.to_csv(output_file, mode='a', header=False, index=False)
+            df.to_csv(summarized_output_file, mode='a', header=False, index=False)
         else:
             # If the file doesn't exist or is empty, write the new results with headers
-            df.to_csv(output_file, index=False)
+            df.to_csv(summarized_output_file, index=False)
 
+        # Creating the complete output
+        kfold_index = 1
+        for result in results:
+            k_fold_df = pd.DataFrame({
+                'k-fold': [kfold_index],
+                'Embedder': [embedder],
+                'Profiles': [profiles],
+                'Retweets': [retweets],
+                'neftune_noise_alpha': [neftune_noise_alpha],
+                'accuracy': [result[0]],
+                'precision': [result[1]],
+                'recall': [result[2]],
+                'f1': [result[3]],
+                'ROC_AUC': [result[5]],
+                'AUC_precision_recall': [result[6]],
+                'G_Mean': [result[7]],
+                'brier_score': [result[8]],
+                'f1_macro': [result[9]],
+                'f1_micro': [result[10]],
+                'f1_weighted': [result[11]],
+                'f1_binary': [result[12]],
+                'best_epoch': [result[4]]
+                })
+            
+            kfold_index += 1
+
+            # Saving the DataFrame in a csv file
+            # Checking if the output file already exists and if it's empty
+            complete_output_file = 'complete_output.csv'
+            if os.path.exists(complete_output_file) and not pd.read_csv(complete_output_file).empty:
+                # If the file exists and is not empty, append the new results
+                k_fold_df.to_csv(complete_output_file, mode='a', header=False, index=False)
+            else:
+                # If the file doesn't exist or is empty, write the new results with headers
+                k_fold_df.to_csv(complete_output_file, index=False)
