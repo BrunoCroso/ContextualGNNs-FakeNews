@@ -3,9 +3,15 @@
         "This json file defines what characteristics are considered for the desired model. The options for each field are:",
         "user_embeddings: true or false (using only lowercase letters). Depending on the option, the model will consider (or not) the content of the users profile in its prediction.",
         "retweet_embeddings: true or false (using only lowercase letters). Depending on the option, the model will consider (or not) the content of the news retweets in its prediction.",
-        "embedder_type: GloVe or BERTweet (both in quotes). This option defines how embeddings will be generated - using GloVe or BERTweet"
+        "embedder_type: GloVe or BERTweet (both in quotes). This option defines how embeddings will be generated - using GloVe or BERTweet",
+        "number_of_models: number_of_models is an integer that represents how many models will be trained with diferent neftune_noise_alpha values",
+        "initial_neftune_noise_alpha: The first model will have neftune_noise_alpha = initial_neftune_noise_alpha",
+        "neftune_noise_alpha_step_size: The iº model will have neftune_noise_alpha = initial_neftune_noise_alpha + (i-1)*neftune_noise_alpha_step_size"
     ],
-    "user_embeddings": false,
+    "user_embeddings": true,
     "retweet_embeddings": true,
-    "embedder_type": "BERTweet"
+    "embedder_type": "BERTweet",
+    "initial_neftune_noise_alpha": 0,
+    "neftune_noise_alpha_step_size": 5,
+    "number_of_models": 5
 }

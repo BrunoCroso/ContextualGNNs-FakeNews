@@ -11,7 +11,7 @@ import logging
 import shutil
 from sklearn.model_selection import train_test_split
 import json
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 
 def write_user_sets(output_dir, train_fnames, test_fnames, val_fnames):
     '''
@@ -70,17 +70,31 @@ def run(args):
     '''
 
     logging.info("Generating datasets for k-fold cross validation")
-    logging.info("Validation size:%s, number of folds:%s" % (args.val_size, args.k))
+    logging.info("Validation size:%s, number of folds:%s" % (args.test_size, args.k))
 
-    kf = KFold(n_splits=args.k, shuffle=False)
+    kf = StratifiedKFold(n_splits=args.k, shuffle=True, random_state=1)
 
     trees = os.listdir("produced_data/trees")
     root_dir = os.path.join("produced_data", "datasets")
+
+    # Tem que gerar o y antes disso
+    y = []
+    for tree in trees:
+        if tree.endswith(".json"): 
+            file_path = os.path.join("produced_data/trees", tree)
+            with open(file_path, 'r') as f:
+                tree_content = json.load(f)
+                if tree_content["label"] == "real":
+                    y.append(0)
+                else:
+                    y.append(1)
+    train_trees, test_trees, y_train, y_test = train_test_split(trees, y, test_size=args.test_size, shuffle=True, random_state=1, stratify=y)
+
     print(len(trees))
-    for i, (train_index, test_index) in enumerate(kf.split(trees)):
+    for i, (train_index, val_index) in enumerate(kf.split(train_trees, y_train)):
         train_trees = [trees[index] for index in train_index]
-        test_trees = [trees[index] for index in test_index]
-        train_trees, val_trees = train_test_split(train_trees, test_size=args.val_size, shuffle=True, random_state=1)
+        val_trees = [trees[index] for index in val_index]
+        #train_trees, val_trees = train_test_split(train_trees, test_size=args.val_size, shuffle=True, random_state=1)
         output_dir = os.path.join(root_dir, 'dataset' + str(i))
         logging.info("Writing files in %s directory" % (output_dir))
         if os.path.exists(output_dir) and os.path.isdir(output_dir):
@@ -122,9 +136,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(epilog="Example: python tweets_to_trees.py")
     parser.add_argument(
-        "--val-size",
-        help="Validation size",
-        dest="val_size",
+        "--test-size",
+        help="test size",
+        dest="test_size",
         type=float,
         default=0.25,
     )

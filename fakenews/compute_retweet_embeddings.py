@@ -4,8 +4,6 @@
 Compute retweet embeddings.
 '''
 
-# AINDA ESTÁ COMPLETO 
-
 import argparse
 import json
 import os
@@ -147,7 +145,7 @@ def run(args):
         print("\nEmbeddings will NOT be generated for retweet content, as defined in options.json\n")
 
 
-if __name__ == "__main__": # As pastas e o resto do conteúdo são passados no terminal )no run.sh)
+if __name__ == "__main__":
 
     logging.basicConfig(
         format="%(asctime)-15s %(name)-15s %(levelname)-8s %(message)s",
