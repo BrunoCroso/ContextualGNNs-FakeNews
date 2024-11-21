@@ -78,12 +78,12 @@ If you use this code or find it helpful in your research, please cite it (bibtex
 
 ```
 @inproceedings{
-silva2024enriching,
-title={Enriching {GNN}s with Text Contextual Representations for Detecting Disinformation Campaigns on Social Media},
-author={Bruno Croso Cunha da Silva and Thomas Palmeira Ferraz and Roseli De Deus Lopes},
-booktitle={The Third Learning on Graphs Conference},
-year={2024},
-url={https://openreview.net/forum?id=2jAcyVTtbB}
+    silva2024enriching,
+    title={Enriching {GNN}s with Text Contextual Representations for Detecting Disinformation Campaigns on Social Media},
+    author={Bruno Croso Cunha da Silva and Thomas Palmeira Ferraz and Roseli De Deus Lopes},
+    booktitle={The Third Learning on Graphs Conference},
+    year={2024},
+    url={https://openreview.net/forum?id=2jAcyVTtbB}
 }
 ```
 
@@ -91,14 +91,14 @@ Please also consider citing our base work, in which this codebase is inspired an
 
 ```
 @article{michail2022detection,
-  title={Detection of fake news campaigns using graph convolutional networks},
-  author={Michail, Dimitrios and Kanakaris, Nikos and Varlamis, Iraklis},
-  journal={International Journal of Information Management Data Insights},
-  volume={2},
-  number={2},
-  pages={100104},
-  year={2022},
-  publisher={Elsevier}
+    title={Detection of fake news campaigns using graph convolutional networks},
+    author={Michail, Dimitrios and Kanakaris, Nikos and Varlamis, Iraklis},
+    journal={International Journal of Information Management Data Insights},
+    volume={2},
+    number={2},
+    pages={100104},
+    year={2022},
+    publisher={Elsevier}
 }
 ```
 
